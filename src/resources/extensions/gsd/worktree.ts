@@ -86,6 +86,17 @@ export function ensureSliceBranch(basePath: string, milestoneId: string, sliceId
     created = true;
   }
 
+  // Auto-commit dirty files before checkout to prevent "would be overwritten" errors.
+  // This handles cases where doctor, STATE.md rebuild, or agent work left uncommitted changes.
+  const status = runGit(basePath, ["status", "--short"]);
+  if (status.trim()) {
+    runGit(basePath, ["add", "-A"]);
+    const staged = runGit(basePath, ["diff", "--cached", "--stat"]);
+    if (staged.trim()) {
+      runGit(basePath, ["commit", "-m", `"chore: auto-commit before switching to ${branch}"`]);
+    }
+  }
+
   runGit(basePath, ["checkout", branch]);
   return created;
 }

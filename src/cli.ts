@@ -8,7 +8,7 @@ import {
   InteractiveMode,
   runPrintMode,
 } from '@mariozechner/pi-coding-agent'
-import { readFileSync } from 'node:fs'
+import { existsSync, readdirSync, renameSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { agentDir, sessionsDir, authFilePath } from './app-paths.js'
 import { initResources } from './resource-loader.js'
@@ -180,6 +180,30 @@ if (isPrintMode) {
 const cwd = process.cwd()
 const safePath = `--${cwd.replace(/^[/\\]/, '').replace(/[/\\:]/g, '-')}--`
 const projectSessionsDir = join(sessionsDir, safePath)
+
+// Migrate legacy flat sessions: before per-directory scoping, all .jsonl session
+// files lived directly in ~/.gsd/sessions/. Move them into the correct per-cwd
+// subdirectory so /resume can find them.
+if (existsSync(sessionsDir)) {
+  try {
+    const entries = readdirSync(sessionsDir)
+    const flatJsonl = entries.filter(f => f.endsWith('.jsonl'))
+    if (flatJsonl.length > 0) {
+      const { mkdirSync } = await import('node:fs')
+      mkdirSync(projectSessionsDir, { recursive: true })
+      for (const file of flatJsonl) {
+        const src = join(sessionsDir, file)
+        const dst = join(projectSessionsDir, file)
+        if (!existsSync(dst)) {
+          renameSync(src, dst)
+        }
+      }
+    }
+  } catch {
+    // Non-fatal — don't block startup if migration fails
+  }
+}
+
 const sessionManager = SessionManager.create(cwd, projectSessionsDir)
 
 initResources(agentDir)

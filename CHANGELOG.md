@@ -6,6 +6,27 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.3.7] - 2026-03-11
+
+### Added
+- Remote user questions via Slack/Discord for headless auto-mode sessions
+
+### Fixed
+- Auto-mode model switches no longer persist as the user's global default (#30)
+- Auto-mode resume now rebuilds disk state and runs doctor before dispatching, preventing inline execution after pause (#16)
+- Silent dispatch failure when command context is null now surfaces an error notification
+- Race condition between timeout handlers and prompt dispatch in auto-mode
+- Remote questions: validate IDs before test-send, sanitize error messages to prevent token leakage
+- Remote questions: cap user_note at 500 chars to prevent LLM context injection
+- Remote questions: validate channel ID format to prevent SSRF
+- Remote questions: add 15s per-request fetch timeout to adapters
+- Remote questions: distinguish Discord 404 from auth errors in reactions
+- Prompt store sorting uses `updatedAt` instead of filename
+- TypeScript parameter properties desugared for `--experimental-strip-types` compatibility
+
+### Changed
+- Remote question result details use discriminated union type
+
 ## [2.3.6] - 2026-03-11
 
 ### Fixed
@@ -129,7 +150,8 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 - License updated to MIT
 
-[Unreleased]: https://github.com/gsd-build/gsd-2/compare/v2.3.6...HEAD
+[Unreleased]: https://github.com/gsd-build/gsd-2/compare/v2.3.7...HEAD
+[2.3.7]: https://github.com/gsd-build/gsd-2/compare/v2.3.6...v2.3.7
 [2.3.6]: https://github.com/gsd-build/gsd-2/compare/v2.3.5...v2.3.6
 [2.3.5]: https://github.com/gsd-build/gsd-2/compare/v2.3.4...v2.3.5
 [2.3.4]: https://github.com/gsd-build/gsd-2/compare/v0.3.3...v2.3.4

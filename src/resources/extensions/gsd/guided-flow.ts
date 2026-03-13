@@ -14,15 +14,16 @@ import { deriveState } from "./state.js";
 import { startAuto } from "./auto.js";
 import { readCrashLock, clearLock, formatCrashInfo } from "./crash-recovery.js";
 import {
-  gsdRoot, milestonesDir, resolveMilestoneFile,
+  gsdRoot, milestonesDir, resolveMilestoneFile, resolveMilestonePath,
   resolveSliceFile, resolveSlicePath, resolveGsdRootFile, relGsdRootFile,
   relMilestoneFile, relSliceFile, relSlicePath,
 } from "./paths.js";
 import { join } from "node:path";
-import { readFileSync, existsSync, mkdirSync, readdirSync } from "node:fs";
+import { readFileSync, existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
 import { execSync, execFileSync } from "node:child_process";
 import { ensureGitignore, ensurePreferences } from "./gitignore.js";
 import { loadEffectiveGSDPreferences } from "./preferences.js";
+import { showConfirm } from "../shared/confirm-ui.js";
 
 // ─── Auto-start after discuss ─────────────────────────────────────────────────
 
@@ -601,6 +602,16 @@ export async function showSmartEntry(
           label: "Discuss first",
           description: "Capture decisions on gray areas before planning.",
         }] : []),
+        {
+          id: "skip_milestone",
+          label: "Skip — create new milestone",
+          description: "Leave this milestone on disk and start a fresh one.",
+        },
+        {
+          id: "discard_milestone",
+          label: "Discard this milestone",
+          description: "Delete the milestone directory and start over.",
+        },
       ];
 
       const choice = await showNextAction(ctx as any, {
@@ -619,6 +630,27 @@ export async function showSmartEntry(
         dispatchWorkflow(pi, loadPrompt("guided-discuss-milestone", {
           milestoneId, milestoneTitle,
         }));
+      } else if (choice === "skip_milestone") {
+        const milestoneIds = findMilestoneIds(basePath);
+        const nextId = `M${String(milestoneIds.length + 1).padStart(3, "0")}`;
+        pendingAutoStart = { ctx, pi, basePath, milestoneId: nextId, step: stepMode };
+        dispatchWorkflow(pi, buildDiscussPrompt(nextId,
+          `New milestone ${nextId}.`,
+          basePath
+        ));
+      } else if (choice === "discard_milestone") {
+        const mDir = resolveMilestonePath(basePath, milestoneId);
+        if (!mDir) return;
+        const confirmed = await showConfirm(ctx as any, {
+          title: "Discard milestone?",
+          message: `This will permanently delete ${milestoneId} and all its contents.`,
+          confirmLabel: "Discard",
+          declineLabel: "Cancel",
+        });
+        if (confirmed) {
+          rmSync(mDir, { recursive: true, force: true });
+          return showSmartEntry(ctx, pi, basePath, options);
+        }
       }
     } else {
       // Roadmap exists — either blocked or ready for auto

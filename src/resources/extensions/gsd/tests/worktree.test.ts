@@ -31,14 +31,14 @@ function run(command: string, cwd: string): string {
 
 const base = mkdtempSync(join(tmpdir(), "gsd-branch-test-"));
 run("git init -b main", base);
-run("git config user.name 'Pi Test'", base);
-run("git config user.email 'pi@example.com'", base);
+run('git config user.name "Pi Test"', base);
+run('git config user.email "pi@example.com"', base);
 mkdirSync(join(base, ".gsd", "milestones", "M001", "slices", "S01", "tasks"), { recursive: true });
 writeFileSync(join(base, "README.md"), "hello\n", "utf-8");
 writeFileSync(join(base, ".gsd", "milestones", "M001", "M001-ROADMAP.md"), `# M001: Demo\n\n## Slices\n- [ ] **S01: Slice One** \`risk:low\` \`depends:[]\`\n  > After this: demo works\n`, "utf-8");
 writeFileSync(join(base, ".gsd", "milestones", "M001", "slices", "S01", "S01-PLAN.md"), `# S01: Slice One\n\n**Goal:** Demo\n**Demo:** Demo\n\n## Must-Haves\n- done\n\n## Tasks\n- [ ] **T01: Implement** \`est:10m\`\n  do it\n`, "utf-8");
 run("git add .", base);
-run("git commit -m 'chore: init'", base);
+run('git commit -m "chore: init"', base);
 
 async function main(): Promise<void> {
   console.log("\n=== ensureSliceBranch ===");
@@ -85,7 +85,7 @@ async function main(): Promise<void> {
   ensureSliceBranch(base, "M001", "S01");
   writeFileSync(join(base, "README.md"), "hello from slice\n", "utf-8");
   run("git add README.md", base);
-  run("git commit -m 'feat: slice change'", base);
+  run('git commit -m "feat: slice change"', base);
   switchToMain(base);
 
   const merge = mergeSliceToMain(base, "M001", "S01", "Slice One");
@@ -107,7 +107,7 @@ async function main(): Promise<void> {
     "- [ ] **S02: Slice Two** `risk:low` `depends:[]`", "  > Demo 2",
   ].join("\n") + "\n", "utf-8");
   run("git add .", base);
-  run("git commit -m 'chore: add S02'", base);
+  run('git commit -m "chore: add S02"', base);
 
   ensureSliceBranch(base, "M001", "S02");
   writeFileSync(join(base, "feature.txt"), "new feature\n", "utf-8");
@@ -168,11 +168,11 @@ async function main(): Promise<void> {
   console.log("\n=== ensureSliceBranch from non-main working branch ===");
   const base2 = mkdtempSync(join(tmpdir(), "gsd-branch-base-test-"));
   run("git init -b main", base2);
-  run("git config user.name 'Pi Test'", base2);
-  run("git config user.email 'pi@example.com'", base2);
+  run('git config user.name "Pi Test"', base2);
+  run('git config user.email "pi@example.com"', base2);
   writeFileSync(join(base2, "README.md"), "hello\n", "utf-8");
   run("git add .", base2);
-  run("git commit -m 'chore: init'", base2);
+  run('git commit -m "chore: init"', base2);
 
   // Create a "developer" branch with planning artifacts (like the real scenario)
   run("git checkout -b developer", base2);
@@ -183,7 +183,7 @@ async function main(): Promise<void> {
     "- [ ] **S01: Config Fix** `risk:low` `depends:[]`", "  > Fix config",
   ].join("\n") + "\n", "utf-8");
   run("git add .", base2);
-  run("git commit -m 'docs(M001): context and roadmap'", base2);
+  run('git commit -m "docs(M001): context and roadmap"', base2);
 
   // Verify main does NOT have the artifacts
   const mainRoadmap = run("git show main:.gsd/milestones/M001/M001-ROADMAP.md 2>&1 || echo MISSING", base2);
@@ -211,8 +211,8 @@ async function main(): Promise<void> {
   console.log("\n=== ensureSliceBranch from slice branch falls back to main ===");
   const base3 = mkdtempSync(join(tmpdir(), "gsd-branch-chain-test-"));
   run("git init -b main", base3);
-  run("git config user.name 'Pi Test'", base3);
-  run("git config user.email 'pi@example.com'", base3);
+  run('git config user.name "Pi Test"', base3);
+  run('git config user.email "pi@example.com"', base3);
   mkdirSync(join(base3, ".gsd", "milestones", "M001", "slices", "S01", "tasks"), { recursive: true });
   mkdirSync(join(base3, ".gsd", "milestones", "M001", "slices", "S02", "tasks"), { recursive: true });
   writeFileSync(join(base3, "README.md"), "hello\n", "utf-8");
@@ -222,7 +222,7 @@ async function main(): Promise<void> {
     "- [ ] **S02: Second** `risk:low` `depends:[]`", "  > second",
   ].join("\n") + "\n", "utf-8");
   run("git add .", base3);
-  run("git commit -m 'chore: init'", base3);
+  run('git commit -m "chore: init"', base3);
 
   ensureSliceBranch(base3, "M001", "S01");
   assertEq(getCurrentBranch(base3), "gsd/M001/S01", "on S01 slice branch");
@@ -379,7 +379,7 @@ async function main(): Promise<void> {
     // User creates feature branch
     run("git checkout -b feature/big-change", repo);
     writeFileSync(join(repo, "setup.txt"), "feature setup\n");
-    run("git add -A && git commit -m 'feat: initial setup'", repo);
+    run('git add -A && git commit -m "feat: initial setup"', repo);
 
     // auto.ts startup: capture + set milestone
     captureIntegrationBranch(repo, "M001");
@@ -397,7 +397,7 @@ async function main(): Promise<void> {
       "multi: S01 inherited feature branch content");
 
     writeFileSync(join(repo, "s01-work.txt"), "s01 output\n");
-    run("git add -A && git commit -m 'feat(S01): work'", repo);
+    run('git add -A && git commit -m "feat(S01): work"', repo);
 
     switchToMain(repo);
     assertEq(getCurrentBranch(repo), "feature/big-change",
@@ -428,7 +428,7 @@ async function main(): Promise<void> {
       "multi: S02 has S01 output (inherited via feature branch)");
 
     writeFileSync(join(repo, "s02-work.txt"), "s02 output\n");
-    run("git add -A && git commit -m 'feat(S02): work'", repo);
+    run('git add -A && git commit -m "feat(S02): work"', repo);
 
     switchToMain(repo);
     assertEq(getCurrentBranch(repo), "feature/big-change",
@@ -479,7 +479,7 @@ async function main(): Promise<void> {
     // Create a slice and do some work
     ensureSliceBranch(repo, "M001", "S01");
     writeFileSync(join(repo, "work.txt"), "wip\n");
-    run("git add -A && git commit -m 'wip'", repo);
+    run('git add -A && git commit -m "wip"', repo);
 
     // Simulate "restart" — clear milestone ID (fresh service instance)
     setActiveMilestoneId(repo, null);
@@ -530,7 +530,7 @@ async function main(): Promise<void> {
     // Full lifecycle on main still works
     ensureSliceBranch(repo, "M001", "S01");
     writeFileSync(join(repo, "feature.txt"), "new\n");
-    run("git add -A && git commit -m 'feat: work'", repo);
+    run('git add -A && git commit -m "feat: work"', repo);
 
     switchToMain(repo);
     assertEq(getCurrentBranch(repo), "main",
@@ -564,7 +564,7 @@ async function main(): Promise<void> {
 
     run("git checkout -b dev-branch", repo);
     writeFileSync(join(repo, "dev-only.txt"), "from dev\n");
-    run("git add -A && git commit -m 'dev setup'", repo);
+    run('git add -A && git commit -m "dev setup"', repo);
 
     captureIntegrationBranch(repo, "M001");
     setActiveMilestoneId(repo, "M001");
@@ -572,7 +572,7 @@ async function main(): Promise<void> {
     // Create S01 (from dev-branch)
     ensureSliceBranch(repo, "M001", "S01");
     writeFileSync(join(repo, "s01.txt"), "s01\n");
-    run("git add -A && git commit -m 's01 work'", repo);
+    run('git add -A && git commit -m "s01 work"', repo);
 
     // While on S01, create S02 — should fall back to integration branch
     ensureSliceBranch(repo, "M001", "S02");

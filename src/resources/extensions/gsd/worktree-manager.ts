@@ -17,7 +17,7 @@
 
 import { existsSync, mkdirSync, realpathSync } from "node:fs";
 import { execSync } from "node:child_process";
-import { join, relative, resolve } from "node:path";
+import { join, resolve } from "node:path";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -66,6 +66,14 @@ function runGit(cwd: string, args: string[], opts: { allowFailure?: boolean } = 
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(`git ${args.join(" ")} failed in ${cwd}: ${message}`);
   }
+}
+
+function normalizePathForComparison(path: string): string {
+  const normalized = path
+    .replaceAll("\\", "/")
+    .replace(/^\/\/\?\//, "")
+    .replace(/\/+$/, "");
+  return process.platform === "win32" ? normalized.toLowerCase() : normalized;
 }
 
 export function getMainBranch(basePath: string): string {
@@ -156,15 +164,29 @@ export function createWorktree(basePath: string, name: string): WorktreeInfo {
  * Parses `git worktree list` and filters to those under .gsd/worktrees/.
  */
 export function listWorktrees(basePath: string): WorktreeInfo[] {
-  // Resolve real paths to handle symlinks (e.g. /tmp → /private/tmp on macOS)
-  const resolvedBase = existsSync(basePath) ? realpathSync(basePath) : resolve(basePath);
-  const wtDir = join(resolvedBase, ".gsd", "worktrees");
+  const baseVariants = [resolve(basePath)];
+  if (existsSync(basePath)) {
+    baseVariants.push(realpathSync(basePath));
+  }
+  const seenRoots = new Set<string>();
+  const worktreeRoots = baseVariants
+    .map(baseVariant => {
+      const path = join(baseVariant, ".gsd", "worktrees");
+      return {
+        normalized: normalizePathForComparison(path),
+      };
+    })
+    .filter(root => {
+      if (seenRoots.has(root.normalized)) return false;
+      seenRoots.add(root.normalized);
+      return true;
+    });
   const rawList = runGit(basePath, ["worktree", "list", "--porcelain"]);
 
   if (!rawList.trim()) return [];
 
   const worktrees: WorktreeInfo[] = [];
-  const entries = rawList.split("\n\n").filter(Boolean);
+  const entries = rawList.replaceAll("\r\n", "\n").split("\n\n").filter(Boolean);
 
   for (const entry of entries) {
     const lines = entry.split("\n");
@@ -175,19 +197,42 @@ export function listWorktrees(basePath: string): WorktreeInfo[] {
 
     const entryPath = wtLine.replace("worktree ", "");
     const branch = branchLine.replace("branch refs/heads/", "");
+    const branchWorktreeName = branch.startsWith("worktree/") ? branch.slice("worktree/".length) : null;
+    const entryVariants = [resolve(entryPath)];
+    if (existsSync(entryPath)) {
+      entryVariants.push(realpathSync(entryPath));
+    }
+    const normalizedEntryVariants = [...new Set(entryVariants.map(normalizePathForComparison))];
+    const matchedRoot = worktreeRoots.find(root =>
+      normalizedEntryVariants.some(entryVariant => entryVariant.startsWith(`${root.normalized}/`)),
+    );
+    const matchesBranchLeaf = branchWorktreeName
+      ? normalizedEntryVariants.some(entryVariant => entryVariant.split("/").pop() === branchWorktreeName)
+      : false;
 
     // Only include worktrees under .gsd/worktrees/
-    if (!entryPath.startsWith(wtDir)) continue;
+    if (!matchedRoot && !matchesBranchLeaf) continue;
 
-    const name = relative(wtDir, entryPath);
-    // Skip nested paths — only direct children
-    if (name.includes("/") || name.includes("\\")) continue;
+    const matchedEntryPath = normalizedEntryVariants.find(entryVariant =>
+      matchedRoot ? entryVariant.startsWith(`${matchedRoot.normalized}/`) : false,
+    );
+    let name = matchedRoot ? matchedEntryPath?.slice(matchedRoot.normalized.length + 1) ?? "" : "";
+
+    // Git on Windows can report a path form that does not map cleanly back to the
+    // repo root even when the branch naming is still authoritative.
+    if ((!name || name.includes("/")) && branchWorktreeName && matchesBranchLeaf) {
+      name = branchWorktreeName;
+    }
+
+    if (!name || name.includes("/")) continue;
+
+    const resolvedEntryPath = existsSync(entryPath) ? realpathSync(entryPath) : resolve(entryPath);
 
     worktrees.push({
       name,
-      path: entryPath,
+      path: resolvedEntryPath,
       branch,
-      exists: existsSync(entryPath),
+      exists: existsSync(resolvedEntryPath),
     });
   }
 

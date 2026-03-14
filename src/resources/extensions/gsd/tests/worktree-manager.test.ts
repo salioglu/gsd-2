@@ -23,8 +23,8 @@ function run(command: string, cwd: string): string {
 // Set up a test repo
 const base = mkdtempSync(join(tmpdir(), "gsd-worktree-mgr-test-"));
 run("git init -b main", base);
-run("git config user.name 'Pi Test'", base);
-run("git config user.email 'pi@example.com'", base);
+run('git config user.name "Pi Test"', base);
+run('git config user.email "pi@example.com"', base);
 
 // Create initial project structure
 mkdirSync(join(base, ".gsd", "milestones", "M001"), { recursive: true });
@@ -35,7 +35,7 @@ writeFileSync(
   "utf-8",
 );
 run("git add .", base);
-run("git commit -m 'chore: init'", base);
+run('git commit -m "chore: init"', base);
 
 async function main(): Promise<void> {
   console.log("\n=== worktreeBranchName ===");
@@ -95,7 +95,7 @@ async function main(): Promise<void> {
     "utf-8",
   );
   run("git add .", wtPath);
-  run("git commit -m 'feat: add M002 and update M001'", wtPath);
+  run('git commit -m "feat: add M002 and update M001"', wtPath);
 
   console.log("\n=== diffWorktreeGSD ===");
   const diff = diffWorktreeGSD(base, "feature-x");

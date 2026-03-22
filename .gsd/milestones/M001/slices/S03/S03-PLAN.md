@@ -50,7 +50,7 @@
   - Verify: `node --experimental-strip-types --test src/resources/extensions/gsd/tests/definition-loader.test.ts` — all 30+ tests pass
   - Done when: All validation, loading, conversion, and substitution tests pass; import smoke test succeeds
 
-- [ ] **T02: Implement graph.ts with DAG operations, iteration expansion, and YAML I/O** `est:20m`
+- [x] **T02: Implement graph.ts with DAG operations, iteration expansion, and YAML I/O** `est:20m`
   - Why: Provides the step-state tracking DAG that `CustomWorkflowEngine` (S04) reads and writes. Depends on `WorkflowDefinition` type from T01.
   - Files: `src/resources/extensions/gsd/graph.ts`, `src/resources/extensions/gsd/tests/graph-operations.test.ts`
   - Do: Adapt prior art (~290 lines) from `feat/declarative-workflow-engine-v2` branch. Rename `graphFromDefinition` to `initializeGraph` (export both for compatibility). Write comprehensive test file covering: `readGraph`/`writeGraph` round-trip, `getNextPendingStep` with dependency ordering, `markStepComplete` immutability, `expandIteration` with downstream dep rewriting and error cases, `initializeGraph` from valid definition, atomic write safety.

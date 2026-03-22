@@ -63,6 +63,14 @@ Write comprehensive tests in `graph-operations.test.ts` covering YAML I/O round-
 
 - `src/resources/extensions/gsd/definition-loader.ts` — `WorkflowDefinition` type import for `initializeGraph()`
 
+## Observability Impact
+
+- **New signal: GRAPH.yaml on disk** — `writeGraph()` persists the full step DAG as human-readable YAML with snake_case keys. Agents and humans can `cat GRAPH.yaml` to inspect step statuses, dependency edges, parent-child relationships, and timing fields (`started_at`, `finished_at`).
+- **New signal: step status lifecycle** — Each `GraphStep` tracks `status` (pending/active/complete/expanded), `startedAt`, and `finishedAt`. `markStepComplete()` auto-sets `finishedAt`. These are visible in the serialized GRAPH.yaml.
+- **New signal: atomic write safety** — `writeGraph()` writes to `.tmp` then renames, so partial writes never corrupt the graph file. A missing `.tmp` file after write confirms atomicity.
+- **Failure state: descriptive errors** — `readGraph()` throws with the full file path when GRAPH.yaml is missing or malformed. `expandIteration()` includes step ID and current status in error messages. `markStepComplete()` identifies the unknown step ID in its error.
+- **Inspection: dependency ordering** — `getNextPendingStep()` can be called on any graph to see what's dispatchable next. Returns `null` when everything is blocked or complete — useful for diagnosing stuck workflows.
+
 ## Expected Output
 
 - `src/resources/extensions/gsd/graph.ts` — DAG types and operations, YAML I/O, iteration expansion (~300 lines)

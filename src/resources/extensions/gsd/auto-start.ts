@@ -105,7 +105,6 @@ export async function bootstrapAutoSession(
   deps: BootstrapDeps,
   interrupted: InterruptedSessionAssessment,
 ): Promise<boolean> {
-  void verboseMode;
   const {
     shouldUseWorktreeIsolation,
     registerSigtermHandler,

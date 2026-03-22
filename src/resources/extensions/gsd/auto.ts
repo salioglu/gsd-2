@@ -987,7 +987,6 @@ export async function startAuto(
     s.stepMode = requestedStepMode;
   }
 
-
   if (freshStartAssessment.lock) {
     clearLock(base);
   }

@@ -177,9 +177,7 @@ export async function assessInterruptedSession(
   }
 
   const hasStrongRecoverySignal =
-    (pausedSession && hasResumableDiskState) ||
-    recoveryToolCallCount > 0 ||
-    hasResumableDiskState;
+    hasResumableDiskState || recoveryToolCallCount > 0;
 
   return {
     classification: hasStrongRecoverySignal ? "recoverable" : "stale",

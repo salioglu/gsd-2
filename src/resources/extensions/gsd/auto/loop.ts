@@ -28,6 +28,7 @@ import {
 } from "./phases.js";
 import { debugLog } from "../debug-logger.js";
 import { isInfrastructureError } from "./infra-errors.js";
+import { resolveEngine } from "../engine-resolver.ts";
 
 /**
  * Main auto-mode execution loop. Iterates: derive → dispatch → guards →
@@ -116,6 +117,85 @@ export async function autoLoop(
       const ic: IterationContext = { ctx, pi, s, deps, prefs, iteration, flowId, nextSeq };
       deps.emitJournalEvent({ ts: new Date().toISOString(), flowId, seq: nextSeq(), eventType: "iteration-start", data: { iteration } });
       let iterData: IterationData;
+
+      // ── Custom engine path ──────────────────────────────────────────────
+      // When activeEngineId is a non-dev value, bypass runPreDispatch and
+      // runDispatch entirely — the custom engine drives its own state via
+      // GRAPH.yaml. Shares runGuards and runUnitPhase with the dev path.
+      // After unit execution, calls engine.reconcile() + policy.verify()
+      // instead of runFinalize().
+      if (s.activeEngineId != null && s.activeEngineId !== "dev" && !sidecarItem) {
+        debugLog("autoLoop", { phase: "custom-engine-derive", iteration, engineId: s.activeEngineId });
+
+        const { engine, policy } = resolveEngine({
+          activeEngineId: s.activeEngineId,
+          activeRunDir: s.activeRunDir,
+        });
+
+        const engineState = await engine.deriveState(s.basePath);
+        if (engineState.isComplete) {
+          await deps.stopAuto(ctx, pi, "Workflow complete");
+          break;
+        }
+
+        debugLog("autoLoop", { phase: "custom-engine-dispatch", iteration });
+        const dispatch = await engine.resolveDispatch(engineState, { basePath: s.basePath });
+
+        if (dispatch.action === "stop") {
+          await deps.stopAuto(ctx, pi, dispatch.reason ?? "Engine stopped");
+          break;
+        }
+        if (dispatch.action === "skip") {
+          continue;
+        }
+
+        // dispatch.action === "dispatch"
+        const step = dispatch.step!;
+        const gsdState = await deps.deriveState(s.basePath);
+
+        iterData = {
+          unitType: step.unitType,
+          unitId: step.unitId,
+          prompt: step.prompt,
+          finalPrompt: step.prompt,
+          pauseAfterUatDispatch: false,
+          observabilityIssues: [],
+          state: gsdState,
+          mid: s.currentMilestoneId ?? "workflow",
+          midTitle: "Workflow",
+          isRetry: false,
+          previousTier: undefined,
+        };
+
+        // ── Guards (shared with dev path) ──
+        const guardsResult = await runGuards(ic, s.currentMilestoneId ?? "workflow");
+        if (guardsResult.action === "break") break;
+
+        // ── Unit execution (shared with dev path) ──
+        const unitPhaseResult = await runUnitPhase(ic, iterData, loopState);
+        if (unitPhaseResult.action === "break") break;
+
+        // ── Reconcile + verify (replaces runFinalize) ──
+        debugLog("autoLoop", { phase: "custom-engine-reconcile", iteration, unitId: iterData.unitId });
+        await engine.reconcile(engineState, {
+          unitType: iterData.unitType,
+          unitId: iterData.unitId,
+          startedAt: s.currentUnit?.startedAt ?? Date.now(),
+          finishedAt: Date.now(),
+        });
+
+        const verifyResult = await policy.verify(iterData.unitType, iterData.unitId, { basePath: s.basePath });
+        if (verifyResult === "pause") {
+          await deps.pauseAuto(ctx, pi);
+          break;
+        }
+
+        deps.clearUnitTimeout();
+        consecutiveErrors = 0;
+        deps.emitJournalEvent({ ts: new Date().toISOString(), flowId, seq: nextSeq(), eventType: "iteration-end", data: { iteration } });
+        debugLog("autoLoop", { phase: "iteration-complete", iteration });
+        continue;
+      }
 
       if (!sidecarItem) {
         // ── Phase 1: Pre-dispatch ─────────────────────────────────────────

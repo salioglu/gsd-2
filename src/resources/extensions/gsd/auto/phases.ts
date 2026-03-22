@@ -1133,7 +1133,7 @@ export async function runUnitPhase(
     );
   }
 
-  const isHookUnit = unitType.startsWith("hook/");
+  const isHookUnit = unitType.startsWith("hook/") || unitType === "custom-step";
   const artifactVerified =
     isHookUnit ||
     deps.verifyExpectedArtifact(unitType, unitId, s.basePath);

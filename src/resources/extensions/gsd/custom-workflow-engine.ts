@@ -27,6 +27,7 @@ import {
   markStepComplete,
   type WorkflowGraph,
 } from "./graph.ts";
+import { injectContext } from "./context-injector.ts";
 
 export class CustomWorkflowEngine implements WorkflowEngine {
   readonly engineId = "custom";
@@ -81,12 +82,15 @@ export class CustomWorkflowEngine implements WorkflowEngine {
       };
     }
 
+    // Enrich prompt with context from prior step artifacts
+    const enrichedPrompt = injectContext(this.runDir, next.id, next.prompt);
+
     return {
       action: "dispatch",
       step: {
         unitType: "custom-step",
         unitId: `${graph.metadata.name}/${next.id}`,
-        prompt: next.prompt,
+        prompt: enrichedPrompt,
       },
     };
   }

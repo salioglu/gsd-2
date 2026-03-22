@@ -66,3 +66,10 @@ The context injection logic:
 - `src/resources/extensions/gsd/context-injector.ts` — new module: `injectContext(runDir, stepId, prompt)` with artifact reading and formatting
 - `src/resources/extensions/gsd/custom-workflow-engine.ts` — modified: `resolveDispatch()` calls `injectContext()` before returning dispatch
 - `src/resources/extensions/gsd/tests/context-injector.test.ts` — new test file with 6+ test cases
+
+## Observability Impact
+
+- **Context injection visible in dispatch:** `resolveDispatch()` now calls `injectContext()` before returning the dispatch action, so the `step.prompt` in the dispatch contains the assembled context. Agents/callers see the enriched prompt without needing separate context lookup.
+- **Truncation warnings:** When an artifact exceeds 10,000 chars, `console.warn` fires with the artifact path, source step ID, and before/after sizes — visible in process stderr.
+- **Unknown step warnings:** When `contextFrom` references a step ID not in the definition, `console.warn` fires with the step ID pair — diagnosable from stderr.
+- **Inspectable on disk:** `cat <runDir>/DEFINITION.yaml | grep -A3 contextFrom` shows which steps reference which context sources.

@@ -37,7 +37,7 @@ All tests run with `node --experimental-strip-types --test`:
   - Verify: `node --experimental-strip-types --test src/resources/extensions/gsd/tests/custom-verification.test.ts`
   - Done when: All verification policy tests pass — content-heuristic checks file existence/size/pattern, shell-command executes real commands, prompt-verify and human-review return "pause", no-policy returns "continue"
 
-- [ ] **T02: Build context-injector.ts and wire into CustomWorkflowEngine** `est:35m`
+- [x] **T02: Build context-injector.ts and wire into CustomWorkflowEngine** `est:35m`
   - Why: Steps with `contextFrom` need prior step artifacts injected into their prompts. This task builds the context injection module and integrates it into the engine's dispatch flow.
   - Files: `src/resources/extensions/gsd/context-injector.ts`, `src/resources/extensions/gsd/custom-workflow-engine.ts`, `src/resources/extensions/gsd/tests/context-injector.test.ts`
   - Do: Create `context-injector.ts` with `injectContext(runDir, stepId)` that reads the frozen DEFINITION.yaml, finds the step's `contextFrom` references, locates each referenced step's `produces` artifacts on disk (relative to runDir), reads their content (truncated to 10k chars each), and returns a formatted context block. Wire into `resolveDispatch()` — after finding the next pending step, call `injectContext()` and prepend the result to `step.prompt`. Handle missing files gracefully (skip with warning). Import with `.ts` extensions per KNOWLEDGE.md.

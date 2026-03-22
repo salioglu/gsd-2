@@ -62,3 +62,10 @@ The examples serve as both reference material and forward inputs for S09's end-t
 - `src/resources/skills/create-workflow/templates/code-audit.yaml` — iterate + shell-command example
 - `src/resources/skills/create-workflow/templates/release-checklist.yaml` — diamond deps + human-review example
 - `src/resources/extensions/gsd/tests/bundled-workflow-defs.test.ts` — validation test for all 3 examples
+
+## Observability Impact
+
+- **New test file**: `bundled-workflow-defs.test.ts` runs 8 assertions — 1 per example YAML validation, 1 per structural property check (params/context_from/iterate/diamond), 1 cross-cutting path-traversal check, and 1 scaffold validation. All results surface via `node:test` runner with pass/fail counts.
+- **Validation error tracing**: If any example YAML drifts from the V1 schema, `validateDefinition()` returns specific `errors[]` strings containing step IDs and field names — these appear in the test failure output for precise diagnosis.
+- **Diagnostic command**: `node --import ./src/resources/extensions/gsd/tests/resolve-ts.mjs --experimental-strip-types -e "import {validateDefinition} from './src/resources/extensions/gsd/definition-loader.ts'; import {parse} from 'yaml'; import {readFileSync} from 'fs'; ['blog-post-pipeline','code-audit','release-checklist'].forEach(f => { const r = validateDefinition(parse(readFileSync('src/resources/skills/create-workflow/templates/'+f+'.yaml','utf-8'))); console.log(f, JSON.stringify(r)) })"` — validates all 3 examples inline.
+- **No runtime signals**: These are static YAML files and a test file — no runtime observability changes.

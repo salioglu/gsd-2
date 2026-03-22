@@ -30,7 +30,7 @@
   - Verify: `test -f src/resources/skills/create-workflow/SKILL.md && head -3 src/resources/skills/create-workflow/SKILL.md | grep -q 'name: create-workflow'`
   - Done when: SKILL.md parses valid YAML frontmatter, uses XML tags (no markdown headings), is under 500 lines; all 7 files exist and are non-empty
 
-- [ ] **T02: Write bundled example YAMLs and validation test** `est:20m`
+- [x] **T02: Write bundled example YAMLs and validation test** `est:20m`
   - Why: The examples serve double duty — they're reference material for users learning the YAML format, and they prove the skill's guidance produces valid definitions. The test is the slice's mechanical verification.
   - Files: `src/resources/skills/create-workflow/templates/blog-post-pipeline.yaml`, `src/resources/skills/create-workflow/templates/code-audit.yaml`, `src/resources/skills/create-workflow/templates/release-checklist.yaml`, `src/resources/extensions/gsd/tests/bundled-workflow-defs.test.ts`
   - Do: Write 3 YAML definitions exercising different features. `blog-post-pipeline` — 3 linear steps with `context_from`, `content-heuristic` verify, `params` (topic, audience). `code-audit` — 3 steps with `iterate` on inventory, `shell-command` verify. `release-checklist` — 4 steps with diamond dependency, `human-review` verify. The test file uses `node:test` + `node:assert/strict`, reads each YAML via `readFileSync`, parses with `yaml.parse()`, and asserts `validateDefinition()` returns `{ valid: true }`.

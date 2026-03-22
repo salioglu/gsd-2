@@ -57,6 +57,6 @@ export function resolveEngine(
 
   return {
     engine: new CustomWorkflowEngine(activeRunDir),
-    policy: new CustomExecutionPolicy(),
+    policy: new CustomExecutionPolicy(activeRunDir),
   };
 }

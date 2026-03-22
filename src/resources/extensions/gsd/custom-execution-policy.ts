@@ -1,20 +1,27 @@
 /**
- * custom-execution-policy.ts — Stub ExecutionPolicy for custom workflows.
+ * custom-execution-policy.ts — ExecutionPolicy for custom workflows.
  *
- * All methods return neutral/no-op values. This stub is wired properly
- * in S05 where verify() gains real verification logic and other methods
- * get meaningful implementations.
+ * Delegates verification to the step-level verification module which reads
+ * the frozen DEFINITION.yaml and dispatches to the appropriate policy handler.
  *
  * Observability:
- * - verify() always returns "continue" — no verification gating.
+ * - verify() returns the outcome from runCustomVerification() — four policies
+ *   are supported: content-heuristic, shell-command, prompt-verify, human-review.
  * - selectModel() returns null — defers to loop defaults.
  * - recover() returns retry — simple default recovery strategy.
  */
 
 import type { ExecutionPolicy } from "./execution-policy.ts";
 import type { RecoveryAction, CloseoutResult } from "./engine-types.ts";
+import { runCustomVerification } from "./custom-verification.ts";
 
 export class CustomExecutionPolicy implements ExecutionPolicy {
+  private readonly runDir: string;
+
+  constructor(runDir: string) {
+    this.runDir = runDir;
+  }
+
   /** No workspace preparation needed for custom workflows. */
   async prepareWorkspace(_basePath: string, _milestoneId: string): Promise<void> {
     // No-op — custom workflows don't need worktree setup
@@ -29,13 +36,21 @@ export class CustomExecutionPolicy implements ExecutionPolicy {
     return null;
   }
 
-  /** Always continue — real verification is added in S05. */
+  /**
+   * Verify step output by dispatching to the step's configured verification policy.
+   *
+   * Extracts the step ID from unitId (format: "<workflowName>/<stepId>")
+   * and calls runCustomVerification() which reads the frozen DEFINITION.yaml
+   * to determine which policy to apply.
+   */
   async verify(
     _unitType: string,
-    _unitId: string,
+    unitId: string,
     _context: { basePath: string },
   ): Promise<"continue" | "retry" | "pause"> {
-    return "continue";
+    const parts = unitId.split("/");
+    const stepId = parts[parts.length - 1];
+    return runCustomVerification(this.runDir, stepId);
   }
 
   /** Default recovery: retry the step. */

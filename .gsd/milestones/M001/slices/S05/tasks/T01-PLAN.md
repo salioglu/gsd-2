@@ -74,3 +74,10 @@ The four verification policies:
 - `src/resources/extensions/gsd/custom-execution-policy.ts` — modified: runDir constructor, verify() wired to runCustomVerification()
 - `src/resources/extensions/gsd/engine-resolver.ts` — modified: passes activeRunDir to CustomExecutionPolicy constructor
 - `src/resources/extensions/gsd/tests/custom-verification.test.ts` — new test file with 10+ test cases
+
+## Observability Impact
+
+- **New signal:** `runCustomVerification()` returns a typed verification outcome per step. The `CustomExecutionPolicy.verify()` method passes this through to the auto-loop, making per-step verification results visible in loop dispatch logging.
+- **Inspectable state:** The frozen DEFINITION.yaml in the run directory is the authoritative source for which verification policy applies to each step. Future agents can inspect it with `cat <runDir>/DEFINITION.yaml | grep -A5 verify`.
+- **Failure visibility:** shell-command policy failures include stderr from the spawned process. content-heuristic failures include the specific check that failed (existence, minSize, pattern). Both are surfaced through the return value path to the caller.
+- **No new log files or endpoints.** All observability is through return values and on-disk YAML state.

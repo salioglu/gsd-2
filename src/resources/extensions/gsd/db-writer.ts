@@ -308,7 +308,15 @@ export async function saveDecisionToDb(
       md = generateDecisionsMd(allDecisions);
     }
 
-    await saveFile(filePath, md);
+    try {
+      await saveFile(filePath, md);
+    } catch (diskErr) {
+      process.stderr.write(
+        `gsd-db: saveDecisionToDb — disk write failed, rolling back DB row: ${(diskErr as Error).message}\n`,
+      );
+      adapter?.prepare('DELETE FROM decisions WHERE id = :id').run({ ':id': id });
+      throw diskErr;
+    }
     // Invalidate file-read caches so deriveState() sees the updated markdown.
     // Do NOT clear the artifacts table — we just wrote to it intentionally.
     invalidateStateCache();
@@ -377,7 +385,15 @@ export async function updateRequirementInDb(
 
     const md = generateRequirementsMd(nonSuperseded);
     const filePath = resolveGsdRootFile(basePath, 'REQUIREMENTS');
-    await saveFile(filePath, md);
+    try {
+      await saveFile(filePath, md);
+    } catch (diskErr) {
+      process.stderr.write(
+        `gsd-db: updateRequirementInDb — disk write failed, reverting DB row: ${(diskErr as Error).message}\n`,
+      );
+      db.upsertRequirement(existing);
+      throw diskErr;
+    }
     // Invalidate file-read caches so deriveState() sees the updated markdown.
     // Do NOT clear the artifacts table — we just wrote to it intentionally.
     invalidateStateCache();
@@ -427,7 +443,16 @@ export async function saveArtifactToDb(
     if (!fullPath.startsWith(gsdDir)) {
       throw new GSDError(GSD_IO_ERROR, `saveArtifactToDb: path escapes .gsd/ directory: ${opts.path}`);
     }
-    await saveFile(fullPath, opts.content);
+    try {
+      await saveFile(fullPath, opts.content);
+    } catch (diskErr) {
+      process.stderr.write(
+        `gsd-db: saveArtifactToDb — disk write failed, rolling back DB row: ${(diskErr as Error).message}\n`,
+      );
+      const rollbackAdapter = db._getAdapter();
+      rollbackAdapter?.prepare('DELETE FROM artifacts WHERE path = :path').run({ ':path': opts.path });
+      throw diskErr;
+    }
     // Invalidate file-read caches so deriveState() sees the updated markdown.
     // Do NOT clear the artifacts table — we just wrote to it intentionally.
     invalidateStateCache();

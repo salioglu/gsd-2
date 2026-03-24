@@ -5,6 +5,7 @@ import {
   insertTask,
   upsertSlicePlanning,
   upsertTaskPlanning,
+  _getAdapter,
 } from "../gsd-db.js";
 import { invalidateStateCache } from "../state.js";
 import { renderPlanFromDb } from "../markdown-renderer.js";
@@ -183,7 +184,25 @@ export async function handlePlanSlice(
       planPath: renderResult.planPath,
       taskPlanPaths: renderResult.taskPlanPaths,
     };
-  } catch (err) {
-    return { error: `render failed: ${(err as Error).message}` };
+  } catch (renderErr) {
+    process.stderr.write(
+      `gsd-db: plan_slice — render failed, rolling back DB rows: ${(renderErr as Error).message}\n`,
+    );
+    const rollbackAdapter = _getAdapter();
+    if (rollbackAdapter) {
+      for (const task of params.tasks) {
+        rollbackAdapter.prepare(
+          `DELETE FROM task_planning WHERE milestone_id = :mid AND slice_id = :sid AND task_id = :tid`,
+        ).run({ ":mid": params.milestoneId, ":sid": params.sliceId, ":tid": task.taskId });
+        rollbackAdapter.prepare(
+          `DELETE FROM tasks WHERE milestone_id = :mid AND slice_id = :sid AND id = :tid`,
+        ).run({ ":mid": params.milestoneId, ":sid": params.sliceId, ":tid": task.taskId });
+      }
+      rollbackAdapter.prepare(
+        `DELETE FROM slice_planning WHERE milestone_id = :mid AND slice_id = :sid`,
+      ).run({ ":mid": params.milestoneId, ":sid": params.sliceId });
+    }
+    invalidateStateCache();
+    return { error: `render failed: ${(renderErr as Error).message}` };
   }
 }

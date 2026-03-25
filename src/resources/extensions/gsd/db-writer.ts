@@ -9,7 +9,7 @@
 // parseDecisionsTable() and parseRequirementsSections() with field fidelity.
 
 import { join, resolve } from 'node:path';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, statSync } from 'node:fs';
 import type { Decision, Requirement } from './types.js';
 import { resolveGsdRootFile } from './paths.js';
 import { saveFile } from './files.js';
@@ -428,30 +428,52 @@ export async function saveArtifactToDb(
   try {
     const db = await import('./gsd-db.js');
 
+    // Guard against path traversal before any reads/writes
+    const gsdDir = resolve(basePath, '.gsd');
+    const fullPath = resolve(basePath, '.gsd', opts.path);
+    if (!fullPath.startsWith(gsdDir)) {
+      throw new GSDError(GSD_IO_ERROR, `saveArtifactToDb: path escapes .gsd/ directory: ${opts.path}`);
+    }
+
+    // Shrinkage guard: if the file already exists and the new content is
+    // significantly smaller (<50%), preserve the richer file on disk and
+    // store its content in the DB instead of the abbreviated version.
+    let dbContent = opts.content;
+    let skipDiskWrite = false;
+    if (existsSync(fullPath)) {
+      const existingSize = statSync(fullPath).size;
+      const newSize = Buffer.byteLength(opts.content, 'utf-8');
+      if (existingSize > 0 && newSize < existingSize * 0.5) {
+        process.stderr.write(
+          `gsd-db: saveArtifactToDb — new content (${newSize}B) is <50% of existing file ` +
+          `(${existingSize}B) at ${opts.path}. Preserving disk file to prevent data loss.\n`,
+        );
+        dbContent = readFileSync(fullPath, 'utf-8');
+        skipDiskWrite = true;
+      }
+    }
+
     db.insertArtifact({
       path: opts.path,
       artifact_type: opts.artifact_type,
       milestone_id: opts.milestone_id ?? null,
       slice_id: opts.slice_id ?? null,
       task_id: opts.task_id ?? null,
-      full_content: opts.content,
+      full_content: dbContent,
     });
 
-    // Write the file to disk (guard against path traversal)
-    const gsdDir = resolve(basePath, '.gsd');
-    const fullPath = resolve(basePath, '.gsd', opts.path);
-    if (!fullPath.startsWith(gsdDir)) {
-      throw new GSDError(GSD_IO_ERROR, `saveArtifactToDb: path escapes .gsd/ directory: ${opts.path}`);
-    }
-    try {
-      await saveFile(fullPath, opts.content);
-    } catch (diskErr) {
-      process.stderr.write(
-        `gsd-db: saveArtifactToDb — disk write failed, rolling back DB row: ${(diskErr as Error).message}\n`,
-      );
-      const rollbackAdapter = db._getAdapter();
-      rollbackAdapter?.prepare('DELETE FROM artifacts WHERE path = :path').run({ ':path': opts.path });
-      throw diskErr;
+    // Write the file to disk (only if we're not preserving a richer existing file)
+    if (!skipDiskWrite) {
+      try {
+        await saveFile(fullPath, opts.content);
+      } catch (diskErr) {
+        process.stderr.write(
+          `gsd-db: saveArtifactToDb — disk write failed, rolling back DB row: ${(diskErr as Error).message}\n`,
+        );
+        const rollbackAdapter = db._getAdapter();
+        rollbackAdapter?.prepare('DELETE FROM artifacts WHERE path = :path').run({ ':path': opts.path });
+        throw diskErr;
+      }
     }
     // Invalidate file-read caches so deriveState() sees the updated markdown.
     // Do NOT clear the artifacts table — we just wrote to it intentionally.

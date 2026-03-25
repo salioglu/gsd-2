@@ -483,6 +483,85 @@ describe('db-writer', () => {
     }
   });
 
+  test('saveArtifactToDb — shrinkage guard preserves larger existing file', async () => {
+    const tmpDir = makeTmpDir();
+    const dbPath = path.join(tmpDir, '.gsd', 'gsd.db');
+    openDatabase(dbPath);
+
+    try {
+      const fullContent = '# Full Research\n\n' + 'x'.repeat(20000) + '\n';
+      const abbreviatedContent = '# Summary\n\nShort version.\n';
+
+      // Pre-create the file with full content (simulating a prior `write` tool call)
+      const relPath = 'milestones/M001/M001-RESEARCH.md';
+      const filePath = path.join(tmpDir, '.gsd', relPath);
+      fs.mkdirSync(path.dirname(filePath), { recursive: true });
+      fs.writeFileSync(filePath, fullContent);
+
+      // Call saveArtifactToDb with abbreviated content — should trigger shrinkage guard
+      await saveArtifactToDb({
+        path: relPath,
+        artifact_type: 'RESEARCH',
+        content: abbreviatedContent,
+        milestone_id: 'M001',
+      }, tmpDir);
+
+      // Disk file should be preserved (not overwritten)
+      assert.deepStrictEqual(
+        fs.readFileSync(filePath, 'utf-8'),
+        fullContent,
+        'disk file preserved — shrinkage guard prevented overwrite',
+      );
+
+      // DB should contain the full disk content, not the abbreviated content
+      const adapter = _getAdapter();
+      const row = adapter!
+        .prepare('SELECT full_content FROM artifacts WHERE path = ?')
+        .get(relPath);
+      assert.deepStrictEqual(
+        row!['full_content'],
+        fullContent,
+        'DB stores the richer disk content instead of abbreviated content',
+      );
+    } finally {
+      closeDatabase();
+      cleanupDir(tmpDir);
+    }
+  });
+
+  test('saveArtifactToDb — allows overwrite when new content is similar size', async () => {
+    const tmpDir = makeTmpDir();
+    const dbPath = path.join(tmpDir, '.gsd', 'gsd.db');
+    openDatabase(dbPath);
+
+    try {
+      const oldContent = '# Summary v1\n\nOriginal content here.\n';
+      const newContent = '# Summary v2\n\nUpdated content here with more details.\n';
+
+      const relPath = 'milestones/M001/M001-SUMMARY.md';
+      const filePath = path.join(tmpDir, '.gsd', relPath);
+      fs.mkdirSync(path.dirname(filePath), { recursive: true });
+      fs.writeFileSync(filePath, oldContent);
+
+      await saveArtifactToDb({
+        path: relPath,
+        artifact_type: 'SUMMARY',
+        content: newContent,
+        milestone_id: 'M001',
+      }, tmpDir);
+
+      // Disk file should be updated (new content is >=50% of old size)
+      assert.deepStrictEqual(
+        fs.readFileSync(filePath, 'utf-8'),
+        newContent,
+        'disk file updated when new content is similar size',
+      );
+    } finally {
+      closeDatabase();
+      cleanupDir(tmpDir);
+    }
+  });
+
   // ═══════════════════════════════════════════════════════════════════════════
   // Full Round-Trip: DB → Markdown → Parse → Compare
   // ═══════════════════════════════════════════════════════════════════════════

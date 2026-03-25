@@ -54,6 +54,7 @@ function makeTask(overrides: Partial<TaskRow> = {}): TaskRow {
     key_files: [],
     key_decisions: [],
     full_summary_md: '',
+    full_plan_md: '',
     inputs: [],
     expected_output: [],
     observability_impact: '',

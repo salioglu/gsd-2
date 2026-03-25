@@ -52,6 +52,7 @@ function makeTaskRow(overrides?: Partial<TaskRow>): TaskRow {
     key_files: [],
     key_decisions: [],
     full_summary_md: '',
+    full_plan_md: '',
     description: 'Test description',
     estimate: '30m',
     files: ['src/test.ts'],

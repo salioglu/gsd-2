@@ -22,7 +22,7 @@ function cleanupDir(dirPath: string): void {
   try { fs.rmSync(dirPath, { recursive: true, force: true }); } catch { /* best effort */ }
 }
 
-function makeEvent(cmd: string, params: Record<string, unknown> = {}): Omit<WorkflowEvent, 'hash'> {
+function makeEvent(cmd: string, params: Record<string, unknown> = {}): Omit<WorkflowEvent, 'hash' | 'session_id'> {
   return { cmd, params, ts: new Date().toISOString(), actor: 'agent' };
 }
 

@@ -562,7 +562,10 @@ export async function deriveStateFromDb(basePath: string): Promise<GSDState> {
   }
 
   // ── All slices done → validating/completing ─────────────────────────
-  const allSlicesDone = activeMilestoneSlices.every(s => isStatusDone(s.status));
+  // Guard: [].every() === true (vacuous truth). Without the length check,
+  // an empty slice array causes a premature phase transition to
+  // validating-milestone. See: https://github.com/gsd-build/gsd-2/issues/2667
+  const allSlicesDone = activeMilestoneSlices.length > 0 && activeMilestoneSlices.every(s => isStatusDone(s.status));
   if (allSlicesDone) {
     const validationFile = resolveMilestoneFile(basePath, activeMilestone.id, "VALIDATION");
     const validationContent = validationFile ? await loadFile(validationFile) : null;

@@ -1308,6 +1308,20 @@ export function updateSliceStatus(milestoneId: string, sliceId: string, status: 
   });
 }
 
+export function setTaskSummaryMd(milestoneId: string, sliceId: string, taskId: string, md: string): void {
+  if (!currentDb) throw new GSDError(GSD_STALE_STATE, "gsd-db: No database open");
+  currentDb.prepare(
+    `UPDATE tasks SET full_summary_md = :md WHERE milestone_id = :mid AND slice_id = :sid AND id = :tid`,
+  ).run({ ":mid": milestoneId, ":sid": sliceId, ":tid": taskId, ":md": md });
+}
+
+export function setSliceSummaryMd(milestoneId: string, sliceId: string, summaryMd: string, uatMd: string): void {
+  if (!currentDb) throw new GSDError(GSD_STALE_STATE, "gsd-db: No database open");
+  currentDb.prepare(
+    `UPDATE slices SET full_summary_md = :summary_md, full_uat_md = :uat_md WHERE milestone_id = :mid AND id = :sid`,
+  ).run({ ":mid": milestoneId, ":sid": sliceId, ":summary_md": summaryMd, ":uat_md": uatMd });
+}
+
 export interface TaskRow {
   milestone_id: string;
   slice_id: string;
@@ -1490,11 +1504,11 @@ export function getMilestone(id: string): MilestoneRow | null {
  * Used by park/unpark to keep the DB in sync with the filesystem marker.
  * See: https://github.com/gsd-build/gsd-2/issues/2694
  */
-export function updateMilestoneStatus(milestoneId: string, status: string): void {
+export function updateMilestoneStatus(milestoneId: string, status: string, completedAt?: string | null): void {
   if (!currentDb) throw new GSDError(GSD_STALE_STATE, "gsd-db: No database open");
   currentDb.prepare(
-    `UPDATE milestones SET status = :status WHERE id = :id`,
-  ).run({ ":status": status, ":id": milestoneId });
+    `UPDATE milestones SET status = :status, completed_at = :completed_at WHERE id = :id`,
+  ).run({ ":status": status, ":completed_at": completedAt ?? null, ":id": milestoneId });
 }
 
 export function getActiveMilestoneFromDb(): MilestoneRow | null {
@@ -1704,6 +1718,20 @@ export function insertAssessment(entry: {
     ":full_content": entry.fullContent,
     ":created_at": new Date().toISOString(),
   });
+}
+
+export function deleteAssessmentByScope(milestoneId: string, scope: string): void {
+  if (!currentDb) throw new GSDError(GSD_STALE_STATE, "gsd-db: No database open");
+  currentDb.prepare(
+    `DELETE FROM assessments WHERE milestone_id = :mid AND scope = :scope`,
+  ).run({ ":mid": milestoneId, ":scope": scope });
+}
+
+export function deleteVerificationEvidence(milestoneId: string, sliceId: string, taskId: string): void {
+  if (!currentDb) throw new GSDError(GSD_STALE_STATE, "gsd-db: No database open");
+  currentDb.prepare(
+    `DELETE FROM verification_evidence WHERE milestone_id = :mid AND slice_id = :sid AND task_id = :tid`,
+  ).run({ ":mid": milestoneId, ":sid": sliceId, ":tid": taskId });
 }
 
 export function deleteTask(milestoneId: string, sliceId: string, taskId: string): void {

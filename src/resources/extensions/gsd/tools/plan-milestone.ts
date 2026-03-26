@@ -6,7 +6,6 @@ import {
   insertSlice,
   upsertMilestonePlanning,
   upsertSlicePlanning,
-  _getAdapter,
 } from "../gsd-db.js";
 import { invalidateStateCache } from "../state.js";
 import { renderRoadmapFromDb } from "../markdown-renderer.js";

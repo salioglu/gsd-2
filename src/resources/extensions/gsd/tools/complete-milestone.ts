@@ -14,7 +14,7 @@ import {
   getMilestone,
   getMilestoneSlices,
   getSliceTasks,
-  _getAdapter,
+  updateMilestoneStatus,
 } from "../gsd-db.js";
 import { resolveMilestonePath, clearPathCache } from "../paths.js";
 import { saveFile, clearParseCache } from "../files.js";
@@ -165,13 +165,7 @@ export async function handleCompleteMilestone(
     }
 
     // All guards passed — perform write
-    const adapter = _getAdapter()!;
-    adapter.prepare(
-      `UPDATE milestones SET status = 'complete', completed_at = :completed_at WHERE id = :mid`,
-    ).run({
-      ":completed_at": completedAt,
-      ":mid": params.milestoneId,
-    });
+    updateMilestoneStatus(params.milestoneId, 'complete', completedAt);
   });
 
   if (guardError) {
@@ -199,12 +193,7 @@ export async function handleCompleteMilestone(
     process.stderr.write(
       `gsd-db: complete_milestone — disk render failed, rolling back DB status: ${(renderErr as Error).message}\n`,
     );
-    const rollbackAdapter = _getAdapter();
-    if (rollbackAdapter) {
-      rollbackAdapter.prepare(
-        `UPDATE milestones SET status = 'active', completed_at = NULL WHERE id = :mid`,
-      ).run({ ":mid": params.milestoneId });
-    }
+    updateMilestoneStatus(params.milestoneId, 'active', null);
     invalidateStateCache();
     return { error: `disk render failed: ${(renderErr as Error).message}` };
   }

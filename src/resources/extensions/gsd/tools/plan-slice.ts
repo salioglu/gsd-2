@@ -7,7 +7,6 @@ import {
   upsertSlicePlanning,
   upsertTaskPlanning,
   insertGateRow,
-  _getAdapter,
 } from "../gsd-db.js";
 import type { GateId } from "../types.js";
 import { invalidateStateCache } from "../state.js";

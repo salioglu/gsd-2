@@ -255,6 +255,7 @@ async function runHeadlessOnce(options: HeadlessOptions, restartCount: number): 
   // per-unit timeout via auto-supervisor. Disable the overall timeout unless the
   // user explicitly set --timeout.
   const isAutoMode = options.command === 'auto'
+  const isMultiTurnCommand = options.command === 'auto' || options.command === 'next'
   if (isAutoMode && options.timeout === 300_000) {
     options.timeout = 0
   }
@@ -571,7 +572,9 @@ async function runHeadlessOnce(options: HeadlessOptions, restartCount: number): 
     }
 
     // Handle execution_complete (v2 structured completion)
-    if (eventObj.type === 'execution_complete' && !completed) {
+    // Skip for multi-turn commands (auto, next) — their completion is detected via
+    // isTerminalNotification("Auto-mode stopped..."/"Step-mode stopped..."), not per-turn events
+    if (eventObj.type === 'execution_complete' && !completed && !isMultiTurnCommand) {
       completed = true
       const status = String(eventObj.status ?? 'success')
       exitCode = mapStatusToExitCode(status)

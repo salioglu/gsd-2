@@ -2,15 +2,16 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { convertTools } from "./anthropic-shared.js";
 
-const makeTool = (name: string) => ({
-	name,
-	description: `desc for ${name}`,
-	parameters: {
-		type: "object" as const,
-		properties: { arg: { type: "string" } },
-		required: ["arg"],
-	},
-});
+const makeTool = (name: string) =>
+	({
+		name,
+		description: `desc for ${name}`,
+		parameters: {
+			type: "object" as const,
+			properties: { arg: { type: "string" } },
+			required: ["arg"],
+		},
+	}) as any;
 
 describe("convertTools cache_control", () => {
 	it("adds cache_control to the last tool when cacheControl is provided", () => {

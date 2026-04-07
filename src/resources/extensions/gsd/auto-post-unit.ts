@@ -39,7 +39,7 @@ import {
 } from "./auto-recovery.js";
 import { regenerateIfMissing } from "./workflow-projections.js";
 import { syncStateToProjectRoot } from "./auto-worktree.js";
-import { isDbAvailable, getTask, getSlice, getMilestone, updateTaskStatus, _getAdapter } from "./gsd-db.js";
+import { isDbAvailable, getTask, getSlice, getMilestone, updateTaskStatus, updateSliceStatus, _getAdapter } from "./gsd-db.js";
 import { renderPlanCheckboxes } from "./markdown-renderer.js";
 import { consumeSignal } from "./session-status-io.js";
 import {
@@ -161,7 +161,14 @@ export function detectRogueFileWrites(
 
     const dbRow = getSlice(mid, sid);
     if (!dbRow || dbRow.status !== "complete") {
-      rogues.push({ path: summaryPath, unitType, unitId });
+      // Auto-remediate: SUMMARY exists on disk but DB is stale — sync DB to
+      // match filesystem instead of reporting as rogue (#3633).
+      try {
+        updateSliceStatus(mid, sid, "complete", new Date().toISOString());
+      } catch {
+        // If DB update fails, fall back to rogue detection so the issue is visible
+        rogues.push({ path: summaryPath, unitType, unitId });
+      }
     }
   } else if (unitType === "plan-milestone") {
     if (!mid) return [];

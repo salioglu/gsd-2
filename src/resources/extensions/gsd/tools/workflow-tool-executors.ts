@@ -8,6 +8,8 @@ import {
 } from "../gsd-db.js";
 import { saveArtifactToDb } from "../db-writer.js";
 import { handleCompleteTask } from "./complete-task.js";
+import type { CompleteSliceParams } from "../types.js";
+import { handleCompleteSlice } from "./complete-slice.js";
 import type { PlanMilestoneParams } from "./plan-milestone.js";
 import { handlePlanMilestone } from "./plan-milestone.js";
 import type { PlanSliceParams } from "./plan-slice.js";
@@ -122,6 +124,7 @@ export interface TaskCompleteParams {
   verificationEvidence?: VerificationEvidenceInput[];
 }
 
+export type SliceCompleteExecutorParams = CompleteSliceParams;
 export type PlanMilestoneExecutorParams = PlanMilestoneParams;
 export type PlanSliceExecutorParams = PlanSliceParams;
 
@@ -165,6 +168,87 @@ export async function executeTaskComplete(
     return {
       content: [{ type: "text", text: `Error completing task: ${msg}` }],
       details: { operation: "complete_task", error: msg },
+    };
+  }
+}
+
+export async function executeSliceComplete(
+  params: SliceCompleteExecutorParams,
+  basePath: string = process.cwd(),
+): Promise<ToolExecutionResult> {
+  const dbAvailable = await ensureDbOpen();
+  if (!dbAvailable) {
+    return {
+      content: [{ type: "text", text: "Error: GSD database is not available. Cannot complete slice." }],
+      details: { operation: "complete_slice", error: "db_unavailable" },
+    };
+  }
+  try {
+    const splitPair = (s: string): [string, string] => {
+      const m = s.match(/^(.+?)\s*(?:—|-)\s+(.+)$/);
+      return m ? [m[1].trim(), m[2].trim()] : [s.trim(), ""];
+    };
+    const wrapArray = (v: unknown): unknown[] =>
+      v == null ? [] : Array.isArray(v) ? v : [v];
+
+    const coerced = { ...params } as CompleteSliceParams & Record<string, unknown>;
+    coerced.provides = wrapArray(params.provides) as string[];
+    coerced.keyFiles = wrapArray(params.keyFiles) as string[];
+    coerced.keyDecisions = wrapArray(params.keyDecisions) as string[];
+    coerced.patternsEstablished = wrapArray(params.patternsEstablished) as string[];
+    coerced.observabilitySurfaces = wrapArray(params.observabilitySurfaces) as string[];
+    coerced.requirementsSurfaced = wrapArray(params.requirementsSurfaced) as string[];
+    coerced.drillDownPaths = wrapArray(params.drillDownPaths) as string[];
+    coerced.affects = wrapArray(params.affects) as string[];
+    coerced.filesModified = wrapArray(params.filesModified).map((f) => {
+      if (typeof f !== "string") return f;
+      const [path, description] = splitPair(f);
+      return { path, description };
+    }) as Array<{ path: string; description: string }>;
+    coerced.requires = wrapArray(params.requires).map((r) => {
+      if (typeof r !== "string") return r;
+      const [slice, provides] = splitPair(r);
+      return { slice, provides };
+    }) as Array<{ slice: string; provides: string }>;
+    coerced.requirementsAdvanced = wrapArray(params.requirementsAdvanced).map((r) => {
+      if (typeof r !== "string") return r;
+      const [id, how] = splitPair(r);
+      return { id, how };
+    }) as Array<{ id: string; how: string }>;
+    coerced.requirementsValidated = wrapArray(params.requirementsValidated).map((r) => {
+      if (typeof r !== "string") return r;
+      const [id, proof] = splitPair(r);
+      return { id, proof };
+    }) as Array<{ id: string; proof: string }>;
+    coerced.requirementsInvalidated = wrapArray(params.requirementsInvalidated).map((r) => {
+      if (typeof r !== "string") return r;
+      const [id, what] = splitPair(r);
+      return { id, what };
+    }) as Array<{ id: string; what: string }>;
+
+    const result = await handleCompleteSlice(coerced as CompleteSliceParams, basePath);
+    if ("error" in result) {
+      return {
+        content: [{ type: "text", text: `Error completing slice: ${result.error}` }],
+        details: { operation: "complete_slice", error: result.error },
+      };
+    }
+    return {
+      content: [{ type: "text", text: `Completed slice ${result.sliceId} (${result.milestoneId})` }],
+      details: {
+        operation: "complete_slice",
+        sliceId: result.sliceId,
+        milestoneId: result.milestoneId,
+        summaryPath: result.summaryPath,
+        uatPath: result.uatPath,
+      },
+    };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    logError("tool", `complete_slice tool failed: ${msg}`, { tool: "gsd_slice_complete", error: String(err) });
+    return {
+      content: [{ type: "text", text: `Error completing slice: ${msg}` }],
+      details: { operation: "complete_slice", error: msg },
     };
   }
 }

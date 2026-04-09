@@ -21,9 +21,11 @@ export interface WorkflowCapabilityOptions {
 
 const MCP_WORKFLOW_TOOL_SURFACE = new Set([
   "gsd_complete_task",
+  "gsd_complete_slice",
   "gsd_milestone_status",
   "gsd_plan_milestone",
   "gsd_plan_slice",
+  "gsd_slice_complete",
   "gsd_summary_save",
   "gsd_task_complete",
 ]);

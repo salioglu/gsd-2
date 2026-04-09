@@ -64,6 +64,34 @@ type WorkflowToolExecutors = {
     },
     basePath?: string,
   ) => Promise<unknown>;
+  executeSliceComplete: (
+    params: {
+      sliceId: string;
+      milestoneId: string;
+      sliceTitle: string;
+      oneLiner: string;
+      narrative: string;
+      verification: string;
+      uatContent: string;
+      deviations?: string;
+      knownLimitations?: string;
+      followUps?: string;
+      keyFiles?: string[] | string;
+      keyDecisions?: string[] | string;
+      patternsEstablished?: string[] | string;
+      observabilitySurfaces?: string[] | string;
+      provides?: string[] | string;
+      requirementsSurfaced?: string[] | string;
+      drillDownPaths?: string[] | string;
+      affects?: string[] | string;
+      requirementsAdvanced?: Array<{ id: string; how: string } | string>;
+      requirementsValidated?: Array<{ id: string; proof: string } | string>;
+      requirementsInvalidated?: Array<{ id: string; what: string } | string>;
+      filesModified?: Array<{ path: string; description: string } | string>;
+      requires?: Array<{ slice: string; provides: string } | string>;
+    },
+    basePath?: string,
+  ) => Promise<unknown>;
   executeSummarySave: (
     params: {
       milestone_id: string;
@@ -181,6 +209,14 @@ async function handleTaskComplete(
   );
 }
 
+async function handleSliceComplete(
+  projectDir: string,
+  args: Record<string, unknown>,
+): Promise<unknown> {
+  const { executeSliceComplete } = await getWorkflowToolExecutors();
+  return withProjectDir(projectDir, () => executeSliceComplete(args as any, projectDir));
+}
+
 export function registerWorkflowTools(server: McpToolServer): void {
   server.tool(
     "gsd_plan_milestone",
@@ -257,6 +293,106 @@ export function registerWorkflowTools(server: McpToolServer): void {
       const { projectDir, ...params } = args as { projectDir: string } & Record<string, unknown>;
       const { executePlanSlice } = await getWorkflowToolExecutors();
       return withProjectDir(projectDir, () => executePlanSlice(params as any, projectDir));
+    },
+  );
+
+  server.tool(
+    "gsd_slice_complete",
+    "Record a completed slice to the GSD database, render SUMMARY.md + UAT.md, and update roadmap projection.",
+    {
+      projectDir: z.string().describe("Absolute path to the project directory"),
+      sliceId: z.string().describe("Slice ID (e.g. S01)"),
+      milestoneId: z.string().describe("Milestone ID (e.g. M001)"),
+      sliceTitle: z.string().describe("Title of the slice"),
+      oneLiner: z.string().describe("One-line summary of what the slice accomplished"),
+      narrative: z.string().describe("Detailed narrative of what happened across all tasks"),
+      verification: z.string().describe("What was verified across all tasks"),
+      uatContent: z.string().describe("UAT test content (markdown body)"),
+      deviations: z.string().optional(),
+      knownLimitations: z.string().optional(),
+      followUps: z.string().optional(),
+      keyFiles: z.union([z.array(z.string()), z.string()]).optional(),
+      keyDecisions: z.union([z.array(z.string()), z.string()]).optional(),
+      patternsEstablished: z.union([z.array(z.string()), z.string()]).optional(),
+      observabilitySurfaces: z.union([z.array(z.string()), z.string()]).optional(),
+      provides: z.union([z.array(z.string()), z.string()]).optional(),
+      requirementsSurfaced: z.union([z.array(z.string()), z.string()]).optional(),
+      drillDownPaths: z.union([z.array(z.string()), z.string()]).optional(),
+      affects: z.union([z.array(z.string()), z.string()]).optional(),
+      requirementsAdvanced: z.array(z.union([
+        z.object({ id: z.string(), how: z.string() }),
+        z.string(),
+      ])).optional(),
+      requirementsValidated: z.array(z.union([
+        z.object({ id: z.string(), proof: z.string() }),
+        z.string(),
+      ])).optional(),
+      requirementsInvalidated: z.array(z.union([
+        z.object({ id: z.string(), what: z.string() }),
+        z.string(),
+      ])).optional(),
+      filesModified: z.array(z.union([
+        z.object({ path: z.string(), description: z.string() }),
+        z.string(),
+      ])).optional(),
+      requires: z.array(z.union([
+        z.object({ slice: z.string(), provides: z.string() }),
+        z.string(),
+      ])).optional(),
+    },
+    async (args: Record<string, unknown>) => {
+      const { projectDir, ...sliceArgs } = args as { projectDir: string } & Record<string, unknown>;
+      return handleSliceComplete(projectDir, sliceArgs);
+    },
+  );
+
+  server.tool(
+    "gsd_complete_slice",
+    "Alias for gsd_slice_complete. Record a completed slice to the GSD database and render summary/UAT artifacts.",
+    {
+      projectDir: z.string().describe("Absolute path to the project directory"),
+      sliceId: z.string().describe("Slice ID (e.g. S01)"),
+      milestoneId: z.string().describe("Milestone ID (e.g. M001)"),
+      sliceTitle: z.string().describe("Title of the slice"),
+      oneLiner: z.string().describe("One-line summary of what the slice accomplished"),
+      narrative: z.string().describe("Detailed narrative of what happened across all tasks"),
+      verification: z.string().describe("What was verified across all tasks"),
+      uatContent: z.string().describe("UAT test content (markdown body)"),
+      deviations: z.string().optional(),
+      knownLimitations: z.string().optional(),
+      followUps: z.string().optional(),
+      keyFiles: z.union([z.array(z.string()), z.string()]).optional(),
+      keyDecisions: z.union([z.array(z.string()), z.string()]).optional(),
+      patternsEstablished: z.union([z.array(z.string()), z.string()]).optional(),
+      observabilitySurfaces: z.union([z.array(z.string()), z.string()]).optional(),
+      provides: z.union([z.array(z.string()), z.string()]).optional(),
+      requirementsSurfaced: z.union([z.array(z.string()), z.string()]).optional(),
+      drillDownPaths: z.union([z.array(z.string()), z.string()]).optional(),
+      affects: z.union([z.array(z.string()), z.string()]).optional(),
+      requirementsAdvanced: z.array(z.union([
+        z.object({ id: z.string(), how: z.string() }),
+        z.string(),
+      ])).optional(),
+      requirementsValidated: z.array(z.union([
+        z.object({ id: z.string(), proof: z.string() }),
+        z.string(),
+      ])).optional(),
+      requirementsInvalidated: z.array(z.union([
+        z.object({ id: z.string(), what: z.string() }),
+        z.string(),
+      ])).optional(),
+      filesModified: z.array(z.union([
+        z.object({ path: z.string(), description: z.string() }),
+        z.string(),
+      ])).optional(),
+      requires: z.array(z.union([
+        z.object({ slice: z.string(), provides: z.string() }),
+        z.string(),
+      ])).optional(),
+    },
+    async (args: Record<string, unknown>) => {
+      const { projectDir, ...sliceArgs } = args as { projectDir: string } & Record<string, unknown>;
+      return handleSliceComplete(projectDir, sliceArgs);
     },
   );
 

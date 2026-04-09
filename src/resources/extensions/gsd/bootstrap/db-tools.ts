@@ -11,6 +11,7 @@ import { getErrorMessage } from "../error-utils.js";
 import {
   executePlanMilestone,
   executePlanSlice,
+  executeSliceComplete,
   executeSummarySave,
   executeTaskComplete,
 } from "../tools/workflow-tool-executors.js";
@@ -647,86 +648,7 @@ export function registerDbTools(pi: ExtensionAPI): void {
   // ─── gsd_slice_complete (gsd_complete_slice alias) ─────────────────────
 
   const sliceCompleteExecute = async (_toolCallId: string, params: any, _signal: AbortSignal | undefined, _onUpdate: unknown, _ctx: unknown) => {
-    const dbAvailable = await ensureDbOpen();
-    if (!dbAvailable) {
-      return {
-        content: [{ type: "text" as const, text: "Error: GSD database is not available. Cannot complete slice." }],
-        details: { operation: "complete_slice", error: "db_unavailable" } as any,
-      };
-    }
-    try {
-      // Coerce string items to objects for fields where LLMs sometimes pass
-      // plain strings instead of the expected { key, value } shape (#3541).
-      // Parses "key — value" or "key - value" format when possible.
-      const splitPair = (s: string): [string, string] => {
-        const m = s.match(/^(.+?)\s*(?:—|-)\s+(.+)$/);
-        return m ? [m[1].trim(), m[2].trim()] : [s.trim(), ""];
-      };
-      const coerced = { ...params };
-      // Coerce simple string-array fields: LLMs sometimes pass a plain string
-      // instead of a single-element array (#3585).
-      const wrapArray = (v: any): any[] =>
-        v == null ? [] : Array.isArray(v) ? v : [v];
-      coerced.provides = wrapArray(params.provides);
-      coerced.keyFiles = wrapArray(params.keyFiles);
-      coerced.keyDecisions = wrapArray(params.keyDecisions);
-      coerced.patternsEstablished = wrapArray(params.patternsEstablished);
-      coerced.observabilitySurfaces = wrapArray(params.observabilitySurfaces);
-      coerced.requirementsSurfaced = wrapArray(params.requirementsSurfaced);
-      coerced.drillDownPaths = wrapArray(params.drillDownPaths);
-      coerced.affects = wrapArray(params.affects);
-      coerced.filesModified = wrapArray(params.filesModified).map((f: any) => {
-        if (typeof f !== "string") return f;
-        const [path, description] = splitPair(f);
-        return { path, description };
-      });
-      coerced.requires = wrapArray(params.requires).map((r: any) => {
-        if (typeof r !== "string") return r;
-        const [slice, provides] = splitPair(r);
-        return { slice, provides };
-      });
-      coerced.requirementsAdvanced = wrapArray(params.requirementsAdvanced).map((r: any) => {
-        if (typeof r !== "string") return r;
-        const [id, how] = splitPair(r);
-        return { id, how };
-      });
-      coerced.requirementsValidated = wrapArray(params.requirementsValidated).map((r: any) => {
-        if (typeof r !== "string") return r;
-        const [id, proof] = splitPair(r);
-        return { id, proof };
-      });
-      coerced.requirementsInvalidated = wrapArray(params.requirementsInvalidated).map((r: any) => {
-        if (typeof r !== "string") return r;
-        const [id, what] = splitPair(r);
-        return { id, what };
-      });
-
-      const { handleCompleteSlice } = await import("../tools/complete-slice.js");
-      const result = await handleCompleteSlice(coerced, process.cwd());
-      if ("error" in result) {
-        return {
-          content: [{ type: "text" as const, text: `Error completing slice: ${result.error}` }],
-          details: { operation: "complete_slice", error: result.error } as any,
-        };
-      }
-      return {
-        content: [{ type: "text" as const, text: `Completed slice ${result.sliceId} (${result.milestoneId})` }],
-        details: {
-          operation: "complete_slice",
-          sliceId: result.sliceId,
-          milestoneId: result.milestoneId,
-          summaryPath: result.summaryPath,
-          uatPath: result.uatPath,
-        } as any,
-      };
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      logError("tool", `complete_slice tool failed: ${msg}`, { tool: "gsd_slice_complete", error: String(err) });
-      return {
-        content: [{ type: "text" as const, text: `Error completing slice: ${msg}` }],
-        details: { operation: "complete_slice", error: msg } as any,
-      };
-    }
+    return executeSliceComplete(params, process.cwd());
   };
 
   const sliceCompleteTool = {

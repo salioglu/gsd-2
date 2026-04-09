@@ -42,14 +42,23 @@ function makeMockServer() {
 }
 
 describe("workflow MCP tools", () => {
-  it("registers the six workflow tools", () => {
+  it("registers the eight workflow tools", () => {
     const server = makeMockServer();
     registerWorkflowTools(server as any);
 
-    assert.equal(server.tools.length, 6);
+    assert.equal(server.tools.length, 8);
     assert.deepEqual(
       server.tools.map((t) => t.name),
-      ["gsd_plan_milestone", "gsd_plan_slice", "gsd_summary_save", "gsd_task_complete", "gsd_complete_task", "gsd_milestone_status"],
+      [
+        "gsd_plan_milestone",
+        "gsd_plan_slice",
+        "gsd_slice_complete",
+        "gsd_complete_slice",
+        "gsd_summary_save",
+        "gsd_task_complete",
+        "gsd_complete_task",
+        "gsd_milestone_status",
+      ],
     );
   });
 
@@ -217,6 +226,153 @@ describe("workflow MCP tools", () => {
       assert.ok(
         existsSync(join(base, ".gsd", "milestones", "M001", "slices", "S01", "tasks", "T01-PLAN.md")),
         "task plan should exist on disk",
+      );
+    } finally {
+      cleanup(base);
+    }
+  });
+
+  it("gsd_slice_complete and gsd_complete_slice work end-to-end", async () => {
+    const base = makeTmpBase();
+    try {
+      const server = makeMockServer();
+      registerWorkflowTools(server as any);
+      const milestoneTool = server.tools.find((t) => t.name === "gsd_plan_milestone");
+      const sliceTool = server.tools.find((t) => t.name === "gsd_plan_slice");
+      const taskTool = server.tools.find((t) => t.name === "gsd_task_complete");
+      const canonicalTool = server.tools.find((t) => t.name === "gsd_slice_complete");
+      const aliasTool = server.tools.find((t) => t.name === "gsd_complete_slice");
+      assert.ok(milestoneTool, "milestone planning tool should be registered");
+      assert.ok(sliceTool, "slice planning tool should be registered");
+      assert.ok(taskTool, "task completion tool should be registered");
+      assert.ok(canonicalTool, "slice completion tool should be registered");
+      assert.ok(aliasTool, "slice completion alias should be registered");
+
+      await milestoneTool!.handler({
+        projectDir: base,
+        milestoneId: "M003",
+        title: "Demo milestone",
+        vision: "Prepare canonical slice completion state.",
+        slices: [
+          {
+            sliceId: "S03",
+            title: "Demo Slice",
+            risk: "medium",
+            depends: [],
+            demo: "Canonical slice completes through MCP.",
+            goal: "Seed workflow state.",
+            successCriteria: "Slice summary and UAT files are written.",
+            proofLevel: "integration",
+            integrationClosure: "Planning and completion share the MCP bridge.",
+            observabilityImpact: "Workflow tests cover canonical completion.",
+          },
+        ],
+      });
+      await sliceTool!.handler({
+        projectDir: base,
+        milestoneId: "M003",
+        sliceId: "S03",
+        goal: "Complete canonical slice over MCP.",
+        tasks: [
+          {
+            taskId: "T03",
+            title: "Canonical task",
+            description: "Seed a completed task for slice completion.",
+            estimate: "5m",
+            files: ["packages/mcp-server/src/workflow-tools.ts"],
+            verify: "node --test",
+            inputs: ["M003-ROADMAP.md"],
+            expectedOutput: ["S03-SUMMARY.md", "S03-UAT.md"],
+          },
+        ],
+      });
+      await taskTool!.handler({
+        projectDir: base,
+        milestoneId: "M003",
+        sliceId: "S03",
+        taskId: "T03",
+        oneLiner: "Completed canonical task",
+        narrative: "Prepared the canonical slice for completion.",
+        verification: "node --test",
+      });
+
+      const canonicalResult = await canonicalTool!.handler({
+        projectDir: base,
+        milestoneId: "M003",
+        sliceId: "S03",
+        sliceTitle: "Demo Slice",
+        oneLiner: "Completed canonical slice",
+        narrative: "Did the slice work",
+        verification: "npm test",
+        uatContent: "## UAT\n\nPASS",
+      });
+      assert.match((canonicalResult as any).content[0].text as string, /Completed slice S03/);
+      await milestoneTool!.handler({
+        projectDir: base,
+        milestoneId: "M004",
+        title: "Alias milestone",
+        vision: "Prepare alias slice completion state.",
+        slices: [
+          {
+            sliceId: "S04",
+            title: "Alias Slice",
+            risk: "medium",
+            depends: [],
+            demo: "Alias slice completes through MCP.",
+            goal: "Seed alias workflow state.",
+            successCriteria: "Alias summary and UAT files are written.",
+            proofLevel: "integration",
+            integrationClosure: "Alias reaches the shared slice executor.",
+            observabilityImpact: "Workflow tests cover alias completion.",
+          },
+        ],
+      });
+      await sliceTool!.handler({
+        projectDir: base,
+        milestoneId: "M004",
+        sliceId: "S04",
+        goal: "Complete alias slice over MCP.",
+        tasks: [
+          {
+            taskId: "T04",
+            title: "Alias task",
+            description: "Seed a completed task for alias slice completion.",
+            estimate: "5m",
+            files: ["packages/mcp-server/src/workflow-tools.ts"],
+            verify: "node --test",
+            inputs: ["M004-ROADMAP.md"],
+            expectedOutput: ["S04-SUMMARY.md", "S04-UAT.md"],
+          },
+        ],
+      });
+      await taskTool!.handler({
+        projectDir: base,
+        milestoneId: "M004",
+        sliceId: "S04",
+        taskId: "T04",
+        oneLiner: "Completed alias task",
+        narrative: "Prepared the alias slice for completion.",
+        verification: "node --test",
+      });
+
+      const aliasResult = await aliasTool!.handler({
+        projectDir: base,
+        milestoneId: "M004",
+        sliceId: "S04",
+        sliceTitle: "Alias Slice",
+        oneLiner: "Completed alias slice",
+        narrative: "Did the slice work via alias",
+        verification: "npm test",
+        uatContent: "## UAT\n\nPASS",
+      });
+      assert.match((aliasResult as any).content[0].text as string, /Completed slice S04/);
+      assert.ok(
+        existsSync(join(base, ".gsd", "milestones", "M004", "slices", "S04", "S04-SUMMARY.md")),
+        "alias should write slice summary to disk",
+      );
+      assert.ok(
+        existsSync(join(base, ".gsd", "milestones", "M004", "slices", "S04", "S04-UAT.md")),
+        "alias should write slice UAT to disk",
       );
     } finally {
       cleanup(base);

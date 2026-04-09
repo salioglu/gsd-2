@@ -16,6 +16,7 @@ import {
   executeMilestoneStatus,
   executePlanMilestone,
   executePlanSlice,
+  executeSliceComplete,
 } from "../tools/workflow-tool-executors.ts";
 
 function makeTmpBase(): string {
@@ -56,6 +57,20 @@ function seedSlice(milestoneId: string, sliceId: string, status: string): void {
   db.prepare(
     "INSERT OR REPLACE INTO slices (milestone_id, id, title, status, created_at) VALUES (?, ?, ?, ?, ?)",
   ).run(milestoneId, sliceId, `Slice ${sliceId}`, status, new Date().toISOString());
+}
+
+function writeRoadmap(base: string, milestoneId: string, sliceIds: string[]): void {
+  const milestoneDir = join(base, ".gsd", "milestones", milestoneId);
+  mkdirSync(milestoneDir, { recursive: true });
+  const lines = [
+    `# ${milestoneId}: Workflow MCP planning`,
+    "",
+    "## Slices",
+    "",
+    ...sliceIds.map((sliceId) => `- [ ] **${sliceId}: Slice ${sliceId}** \`risk:medium\` \`depends:[]\`\n  - After this: demo`),
+    "",
+  ];
+  writeFileSync(join(milestoneDir, `${milestoneId}-ROADMAP.md`), lines.join("\n"));
 }
 
 test("executeSummarySave persists artifact and returns computed path", async () => {
@@ -229,6 +244,45 @@ test("executePlanSlice writes task planning state and rendered plan artifacts", 
     const planPath = String(result.details.planPath);
     assert.ok(existsSync(planPath), "slice plan should be rendered to disk");
     assert.match(readFileSync(planPath, "utf-8"), /Persist slice plan over MCP/);
+  } finally {
+    closeDatabase();
+    cleanup(base);
+  }
+});
+
+test("executeSliceComplete coerces string enrichment entries and writes summary/UAT artifacts", async () => {
+  const base = makeTmpBase();
+  try {
+    openTestDb(base);
+    seedMilestone("M001", "Milestone One");
+    seedSlice("M001", "S01", "pending");
+    writeRoadmap(base, "M001", ["S01"]);
+    const db = _getAdapter();
+    db!.prepare(
+      "INSERT OR REPLACE INTO tasks (milestone_id, slice_id, id, title, status) VALUES (?, ?, ?, ?, ?)",
+    ).run("M001", "S01", "T01", "Task T01", "complete");
+
+    const result = await inProjectDir(base, () => executeSliceComplete({
+      milestoneId: "M001",
+      sliceId: "S01",
+      sliceTitle: "Slice S01",
+      oneLiner: "Completed slice",
+      narrative: "Implemented the slice",
+      verification: "node --test",
+      uatContent: "## UAT\n\nPASS",
+      provides: "shared executor path",
+      requirementsAdvanced: ["R001 - added slice completion support"],
+      filesModified: ["src/file.ts - updated logic"],
+      requires: ["S00 - upstream context"],
+    }, base));
+
+    assert.equal(result.details.operation, "complete_slice");
+    const summaryPath = String(result.details.summaryPath);
+    const uatPath = String(result.details.uatPath);
+    assert.ok(existsSync(summaryPath), "slice summary should be written to disk");
+    assert.ok(existsSync(uatPath), "slice UAT should be written to disk");
+    assert.match(readFileSync(summaryPath, "utf-8"), /shared executor path/);
+    assert.match(readFileSync(summaryPath, "utf-8"), /R001/);
   } finally {
     closeDatabase();
     cleanup(base);

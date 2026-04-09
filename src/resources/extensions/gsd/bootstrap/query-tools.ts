@@ -2,6 +2,7 @@
 
 import { Type } from "@sinclair/typebox";
 import type { ExtensionAPI } from "@gsd/pi-coding-agent";
+import { ensureDbOpen } from "./dynamic-tools.js";
 import { executeMilestoneStatus } from "../tools/workflow-tool-executors.js";
 
 export function registerQueryTools(pi: ExtensionAPI): void {
@@ -20,6 +21,13 @@ export function registerQueryTools(pi: ExtensionAPI): void {
       milestoneId: Type.String({ description: "Milestone ID to query (e.g. M001)" }),
     }),
     async execute(_toolCallId, params, _signal, _onUpdate, _ctx) {
+      const dbAvailable = await ensureDbOpen();
+      if (!dbAvailable) {
+        return {
+          content: [{ type: "text", text: "Error: GSD database is not available. Cannot read milestone status." }],
+          details: { operation: "milestone_status", error: "db_unavailable" },
+        };
+      }
       return executeMilestoneStatus(params);
     },
   });

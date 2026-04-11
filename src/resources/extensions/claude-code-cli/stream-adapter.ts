@@ -313,8 +313,15 @@ export function parseTextInputElicitation(
 	request: Pick<SdkElicitationRequest, "message" | "mode" | "requestedSchema">,
 ): ParsedTextInputField[] | null {
 	if (request.mode && request.mode !== "form") return null;
-	const properties = request.requestedSchema?.properties;
-	if (!properties || typeof properties !== "object") return null;
+	const schema = request.requestedSchema as
+		| ({ properties?: Record<string, SdkElicitationFieldSchema>; keys?: Record<string, SdkElicitationFieldSchema> } & Record<string, unknown>)
+		| undefined;
+	const fieldsSource = schema?.properties && typeof schema.properties === "object"
+		? schema.properties
+		: schema?.keys && typeof schema.keys === "object"
+			? schema.keys
+			: undefined;
+	if (!fieldsSource) return null;
 
 	const requiredSet = new Set(
 		Array.isArray(request.requestedSchema?.required)
@@ -323,10 +330,10 @@ export function parseTextInputElicitation(
 	);
 
 	const fields: ParsedTextInputField[] = [];
-	for (const [fieldId, field] of Object.entries(properties)) {
-		if (!field || typeof field !== "object") return null;
-		if (field.type !== "string") return null;
-		if (Array.isArray(field.oneOf) && field.oneOf.length > 0) return null;
+	for (const [fieldId, field] of Object.entries(fieldsSource)) {
+		if (!field || typeof field !== "object") continue;
+		if (field.type !== "string") continue;
+		if (Array.isArray(field.oneOf) && field.oneOf.length > 0) continue;
 
 		fields.push({
 			id: fieldId,

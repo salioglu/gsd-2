@@ -557,6 +557,39 @@ describe("stream-adapter — MCP elicitation bridge", () => {
 		]);
 	});
 
+	test("parseTextInputElicitation accepts legacy keys schema and skips unsupported fields", () => {
+		const request = {
+			serverName: "gsd-workflow",
+			message: "Enter secure values",
+			mode: "form" as const,
+			requestedSchema: {
+				type: "object" as const,
+				keys: {
+					API_TOKEN: {
+						type: "string",
+						title: "API_TOKEN",
+						description: "Leave empty to skip.",
+					},
+					META: {
+						type: "object",
+						title: "metadata",
+					},
+				},
+			},
+		};
+
+		const parsed = parseTextInputElicitation(request as any);
+		assert.deepEqual(parsed, [
+			{
+				id: "API_TOKEN",
+				title: "API_TOKEN",
+				description: "Leave empty to skip.",
+				required: false,
+				secure: true,
+			},
+		]);
+	});
+
 	test("createClaudeCodeElicitationHandler collects secure_env_collect fields through input dialogs", async () => {
 		const secureRequest = {
 			serverName: "gsd-workflow",

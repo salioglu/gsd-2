@@ -547,9 +547,6 @@ export async function createMcpServer(sessionManager: SessionManager): Promise<{
             type: 'string',
             title: item.key,
             description: descParts.join('\n'),
-            format: 'password',
-            writeOnly: true,
-            'x-sensitive': true,
           };
           // Don't mark as required — empty string = skip
         }

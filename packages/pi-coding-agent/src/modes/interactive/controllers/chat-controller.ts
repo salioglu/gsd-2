@@ -369,8 +369,13 @@ export async function handleAgentEvent(host: InteractiveModeStateHost & {
 					if (!errorMessage) {
 						errorMessage = host.streamingMessage.errorMessage || "Error";
 					}
-					for (const [, component] of host.pendingTools.entries()) {
-						component.updateResult({ content: [{ type: "text", text: errorMessage }], isError: true });
+					const pendingComponents = Array.from(host.pendingTools.values());
+					if (pendingComponents.length > 0) {
+						const [first, ...rest] = pendingComponents;
+						first.completeWithError(errorMessage);
+						for (const component of rest) {
+							component.completeWithError();
+						}
 					}
 					host.pendingTools.clear();
 				} else {

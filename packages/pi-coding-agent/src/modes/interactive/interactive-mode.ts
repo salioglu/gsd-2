@@ -1785,7 +1785,7 @@ export class InteractiveMode {
 		} else if (type === "warning") {
 			this.showWarning(message);
 		} else {
-			this.showStatus(message);
+			this.showStatus(message, { append: true });
 		}
 	}
 
@@ -2052,12 +2052,13 @@ export class InteractiveMode {
 	 * If multiple status messages are emitted back-to-back (without anything else being added to the chat),
 	 * we update the previous status line instead of appending new ones to avoid log spam.
 	 */
-	private showStatus(message: string): void {
+	private showStatus(message: string, options?: { append?: boolean }): void {
+		const append = options?.append ?? false;
 		const children = this.chatContainer.children;
 		const last = children.length > 0 ? children[children.length - 1] : undefined;
 		const secondLast = children.length > 1 ? children[children.length - 2] : undefined;
 
-		if (last && secondLast && last === this.lastStatusText && secondLast === this.lastStatusSpacer) {
+		if (!append && last && secondLast && last === this.lastStatusText && secondLast === this.lastStatusSpacer) {
 			this.lastStatusText.setText(theme.fg("dim", message));
 			this.ui.requestRender();
 			return;

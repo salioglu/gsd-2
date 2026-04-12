@@ -1,0 +1,49 @@
+// Canonical GSD shortcut definitions used by registration, help text, and overlays.
+
+import { formatShortcut } from "./files.js";
+
+export type GSDShortcutId = "dashboard" | "notifications" | "parallel";
+
+type GSDShortcutDef = {
+  key: "g" | "n" | "p";
+  action: string;
+  command: string;
+};
+
+export const GSD_SHORTCUTS: Record<GSDShortcutId, GSDShortcutDef> = {
+  dashboard: {
+    key: "g",
+    action: "Open GSD dashboard",
+    command: "/gsd status",
+  },
+  notifications: {
+    key: "n",
+    action: "Open notification history",
+    command: "/gsd notifications",
+  },
+  parallel: {
+    key: "p",
+    action: "Open parallel worker monitor",
+    command: "/gsd parallel watch",
+  },
+};
+
+function combo(prefix: "Ctrl+Alt+" | "Ctrl+Shift+", key: string): string {
+  return `${prefix}${key.toUpperCase()}`;
+}
+
+export function primaryShortcutCombo(id: GSDShortcutId): string {
+  return combo("Ctrl+Alt+", GSD_SHORTCUTS[id].key);
+}
+
+export function fallbackShortcutCombo(id: GSDShortcutId): string {
+  return combo("Ctrl+Shift+", GSD_SHORTCUTS[id].key);
+}
+
+export function shortcutPair(id: GSDShortcutId, formatter: (combo: string) => string = (combo) => combo): string {
+  return `${formatter(primaryShortcutCombo(id))} / ${formatter(fallbackShortcutCombo(id))}`;
+}
+
+export function formattedShortcutPair(id: GSDShortcutId): string {
+  return shortcutPair(id, formatShortcut);
+}

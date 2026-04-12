@@ -326,6 +326,29 @@ export class ToolExecutionComponent extends Container {
 	}
 
 	/**
+	 * Finalize a pending tool call as failed/interrupted while preserving any streamed partial output.
+	 */
+	completeWithError(message?: string): void {
+		this.isPartial = false;
+		if (this.result) {
+			let content = this.result.content;
+			if (message) {
+				const alreadyHasMessage = content.some((block) => block.type === "text" && block.text === message);
+				if (!alreadyHasMessage) {
+					content = [...content, { type: "text", text: message }];
+				}
+			}
+			this.result = { ...this.result, content, isError: true };
+		} else {
+			this.result = {
+				content: message ? [{ type: "text", text: message }] : [],
+				isError: true,
+			};
+		}
+		this.updateDisplay();
+	}
+
+	/**
 	 * Convert non-PNG images to PNG for Kitty graphics protocol.
 	 * Kitty requires PNG format (f=100), so JPEG/GIF/WebP won't display.
 	 */
@@ -652,6 +675,12 @@ export class ToolExecutionComponent extends Container {
 			text = `${theme.fg("toolTitle", theme.bold("read"))} ${pathDisplay}`;
 
 			if (this.result) {
+				if (this.result.isError) {
+					const errorText = this.getTextOutput().trim() || "read failed";
+					text += `\n\n${theme.fg("error", errorText)}`;
+					return text;
+				}
+
 				const rawOutput = this.getTextOutput();
 				// Strip hashline prefixes (e.g. "1#BQ:content") for TUI display
 				const output = rawOutput.replace(/^(\s*)\d+#[ZPMQVRWSNKTXJBYH]{2}:/gm, "$1");
@@ -804,6 +833,12 @@ export class ToolExecutionComponent extends Container {
 			}
 
 			if (this.result) {
+				if (this.result.isError) {
+					const errorText = this.getTextOutput().trim() || "ls failed";
+					text += `\n\n${theme.fg("error", errorText)}`;
+					return text;
+				}
+
 				const output = this.getTextOutput().trim();
 				if (output) {
 					const lines = output.split("\n");
@@ -846,6 +881,12 @@ export class ToolExecutionComponent extends Container {
 			}
 
 			if (this.result) {
+				if (this.result.isError) {
+					const errorText = this.getTextOutput().trim() || "find failed";
+					text += `\n\n${theme.fg("error", errorText)}`;
+					return text;
+				}
+
 				const output = this.getTextOutput().trim();
 				if (output) {
 					const lines = output.split("\n");
@@ -892,6 +933,12 @@ export class ToolExecutionComponent extends Container {
 			}
 
 			if (this.result) {
+				if (this.result.isError) {
+					const errorText = this.getTextOutput().trim() || "grep failed";
+					text += `\n\n${theme.fg("error", errorText)}`;
+					return text;
+				}
+
 				const output = this.getTextOutput().trim();
 				if (output) {
 					const lines = output.split("\n");

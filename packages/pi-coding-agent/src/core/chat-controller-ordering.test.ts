@@ -320,6 +320,105 @@ test("chat-controller drops provisional pre-tool text for claude-code MCP turns"
 	await handleAgentEvent(host, { type: "message_end", message: makeAssistant(finalContent) } as any);
 });
 
+test("chat-controller prunes orphaned provisional text after claude-code sub-turn shrink when MCP tools appear", async () => {
+	(globalThis as any)[Symbol.for("@gsd/pi-coding-agent:theme")] = {
+		fg: (_key: string, text: string) => text,
+		bg: (_key: string, text: string) => text,
+		bold: (text: string) => text,
+		italic: (text: string) => text,
+		truncate: (text: string) => text,
+	};
+
+	const host = createHost();
+	host.getMarkdownThemeWithSettings = () => ({});
+
+	const mcpTool = {
+		type: "toolCall",
+		id: "mcp-tool-shrink-1",
+		name: "glob",
+		mcpServer: "filesystem",
+		arguments: { pattern: "**/*" },
+	};
+
+	await handleAgentEvent(host, { type: "message_start", message: makeAssistant([]) } as any);
+
+	// Sub-turn 1: generate longer provisional text content.
+	await handleAgentEvent(
+		host,
+		{
+			type: "message_update",
+			message: makeAssistant([{ type: "text", text: "Old provisional preface." }, { type: "text", text: "More old text." }]),
+			assistantMessageEvent: {
+				type: "text_delta",
+				contentIndex: 1,
+				delta: "More old text.",
+				partial: makeAssistant([{ type: "text", text: "Old provisional preface." }, { type: "text", text: "More old text." }]),
+			},
+		} as any,
+	);
+	assert.equal(host.chatContainer.children.length, 1, "first sub-turn text run should render");
+
+	// Sub-turn 2 starts (content shrink): old component is orphaned by design.
+	await handleAgentEvent(
+		host,
+		{
+			type: "message_update",
+			message: makeAssistant([{ type: "text", text: "New provisional text before tool." }]),
+			assistantMessageEvent: {
+				type: "text_delta",
+				contentIndex: 0,
+				delta: "New provisional text before tool.",
+				partial: makeAssistant([{ type: "text", text: "New provisional text before tool." }]),
+			},
+		} as any,
+	);
+	assert.equal(host.chatContainer.children.length, 2, "shrink keeps prior text until MCP tool context appears");
+
+	// MCP tool appears in sub-turn 2: both old orphaned text and current pre-tool text should be pruned.
+	await handleAgentEvent(
+		host,
+		{
+			type: "message_update",
+			message: makeAssistant([{ type: "text", text: "New provisional text before tool." }, mcpTool]),
+			assistantMessageEvent: {
+				type: "toolcall_end",
+				contentIndex: 1,
+				toolCall: {
+					...mcpTool,
+					externalResult: {
+						content: [{ type: "text", text: "glob output" }],
+						details: {},
+						isError: false,
+					},
+				},
+				partial: makeAssistant([{ type: "text", text: "New provisional text before tool." }, mcpTool]),
+			},
+		} as any,
+	);
+	assert.equal(host.chatContainer.children.length, 1, "stale text runs should be removed once MCP tool is present");
+	assert.equal(host.chatContainer.children[0]?.constructor?.name, "ToolExecutionComponent");
+
+	const finalContent = [mcpTool, { type: "text", text: "Final visible question?" }];
+	await handleAgentEvent(
+		host,
+		{
+			type: "message_update",
+			message: makeAssistant(finalContent),
+			assistantMessageEvent: {
+				type: "text_delta",
+				contentIndex: 1,
+				delta: "Final visible question?",
+				partial: makeAssistant(finalContent),
+			},
+		} as any,
+	);
+	assert.equal(host.chatContainer.children.length, 2);
+	assert.equal(host.chatContainer.children[0]?.constructor?.name, "ToolExecutionComponent");
+	assert.equal(host.chatContainer.children[1]?.constructor?.name, "AssistantMessageComponent");
+
+	await handleAgentEvent(host, { type: "message_end", message: makeAssistant(finalContent) } as any);
+});
+
 test("chat-controller pins latest assistant text above editor when tool calls are present", async () => {
 	(globalThis as any)[Symbol.for("@gsd/pi-coding-agent:theme")] = {
 		fg: (_key: string, text: string) => text,

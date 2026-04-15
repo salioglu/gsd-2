@@ -20,6 +20,10 @@ type RenderedSegment =
 	| { kind: "tool"; contentIndex: number; component: ToolExecutionComponent };
 
 let renderedSegments: RenderedSegment[] = [];
+// When providers reuse one assistant lifecycle across internal sub-turns,
+// a content[] shrink resets renderedSegments. Keep the displaced segments so
+// claude-code MCP pruning can remove stale provisional text later.
+let orphanedSegments: RenderedSegment[] = [];
 
 function hasVisibleAssistantContent(message: { content: Array<any> }): boolean {
 	return message.content.some(
@@ -93,6 +97,7 @@ export async function handleAgentEvent(host: InteractiveModeStateHost & {
 		lastPinnedText = "";
 		hasToolsInTurn = false;
 		renderedSegments = [];
+		orphanedSegments = [];
 		if (pinnedBorder) pinnedBorder.stopSpinner();
 		pinnedBorder = undefined;
 		pinnedTextComponent = undefined;
@@ -113,6 +118,7 @@ export async function handleAgentEvent(host: InteractiveModeStateHost & {
 					lastPinnedText = "";
 					hasToolsInTurn = false;
 					renderedSegments = [];
+					orphanedSegments = [];
 					lastContentLength = 0;
 					if (pinnedBorder) pinnedBorder.stopSpinner();
 					pinnedBorder = undefined;
@@ -226,6 +232,7 @@ export async function handleAgentEvent(host: InteractiveModeStateHost & {
 				// content (#4144 regression). Prior sub-turn children stay in
 				// chatContainer as frozen history; new segments append after them.
 				if (contentBlocks.length < lastContentLength) {
+					orphanedSegments = [...renderedSegments];
 					renderedSegments = [];
 					lastPinnedText = "";
 					lastProcessedContentIndex = 0;
@@ -346,6 +353,20 @@ export async function handleAgentEvent(host: InteractiveModeStateHost & {
 					// superseded by post-tool output. Prune stale text-run segments so
 					// the final assistant output remains below tool output.
 					if (shouldDropPreToolText && firstToolIdx >= 0) {
+						if (orphanedSegments.length > 0) {
+							const remainingOrphans: RenderedSegment[] = [];
+							for (const orphan of orphanedSegments) {
+								if (orphan.kind === "text-run") {
+									host.chatContainer.removeChild(orphan.component);
+									if (host.streamingComponent === orphan.component) {
+										host.streamingComponent = undefined;
+									}
+									continue;
+								}
+								remainingOrphans.push(orphan);
+							}
+							orphanedSegments = remainingOrphans;
+						}
 						const desiredTextStarts = new Set(
 							desired
 								.filter((seg): seg is Extract<DesiredSegment, { kind: "text-run" }> => seg.kind === "text-run")
@@ -536,6 +557,7 @@ export async function handleAgentEvent(host: InteractiveModeStateHost & {
 				host.streamingComponent = undefined;
 				host.streamingMessage = undefined;
 				renderedSegments = [];
+				orphanedSegments = [];
 				lastContentLength = 0;
 				// Clear pinned output once the message is finalized in the chat
 				// container — prevents duplicate display when the agent continues
@@ -599,6 +621,7 @@ export async function handleAgentEvent(host: InteractiveModeStateHost & {
 			host.streamingComponent = undefined;
 			host.streamingMessage = undefined;
 			renderedSegments = [];
+			orphanedSegments = [];
 			lastContentLength = 0;
 			host.pendingTools.clear();
 			// Pinned output is only useful while work is actively streaming.

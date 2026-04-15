@@ -31,6 +31,8 @@ import { isInfrastructureError, isTransientCooldownError, getCooldownRetryAfterM
 import { resolveEngine } from "../engine-resolver.js";
 import { logWarning } from "../workflow-logger.js";
 import { gsdRoot } from "../paths.js";
+import { resolveUokFlags } from "../uok/flags.js";
+import { scheduleSidecarQueue } from "../uok/execution-graph.js";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 
@@ -205,10 +207,18 @@ export async function autoLoop(
     try {
       // ── Blanket try/catch: one bad iteration must not kill the session
       const prefs = deps.loadEffectiveGSDPreferences()?.preferences;
+      const uokFlags = resolveUokFlags(prefs);
 
       // ── Check sidecar queue before deriveState ──
       let sidecarItem: SidecarItem | undefined;
       if (s.sidecarQueue.length > 0) {
+        if (uokFlags.executionGraph && s.sidecarQueue.length > 1) {
+          try {
+            s.sidecarQueue = await scheduleSidecarQueue(s.sidecarQueue);
+          } catch (err) {
+            logWarning("dispatch", `sidecar queue scheduling failed: ${err instanceof Error ? err.message : String(err)}`);
+          }
+        }
         sidecarItem = s.sidecarQueue.shift()!;
         debugLog("autoLoop", {
           phase: "sidecar-dequeue",

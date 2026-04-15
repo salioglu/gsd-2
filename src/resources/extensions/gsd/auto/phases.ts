@@ -396,7 +396,10 @@ export async function runPreDispatch(
             s.basePath,
             mid,
             eligible,
-            { maxWorkers: prefs.slice_parallel.max_workers ?? 2 },
+            {
+              maxWorkers: prefs.slice_parallel.max_workers ?? 2,
+              useExecutionGraph: uokFlags.executionGraph,
+            },
           );
           if (result.started.length > 0) {
             ctx.ui.notify(

@@ -1,4 +1,6 @@
 import type { UokGraphNode } from "./contracts.js";
+import type { DerivedTaskNode } from "../types.js";
+import type { SidecarItem } from "../auto/session.js";
 
 export interface ExecutionGraphRunOptions {
   parallel?: boolean;
@@ -11,6 +13,123 @@ export interface ExecutionGraphResult {
 }
 
 export type ExecutionNodeHandler = (node: UokGraphNode) => Promise<void>;
+
+export interface ConflictFreeBatchInput {
+  orderedIds: string[];
+  maxParallel: number;
+  hasConflict: (leftId: string, rightId: string) => boolean;
+}
+
+export interface ReactiveDispatchSelectionInput {
+  graph: Array<Pick<DerivedTaskNode, "id" | "dependsOn" | "outputFiles">>;
+  readyIds: string[];
+  maxParallel: number;
+  inFlightOutputs?: Set<string>;
+}
+
+export interface ReactiveDispatchSelectionResult {
+  selected: string[];
+  conflicts: Array<{ nodeA: string; nodeB: string; file: string }>;
+}
+
+export function selectConflictFreeBatch({
+  orderedIds,
+  maxParallel,
+  hasConflict,
+}: ConflictFreeBatchInput): string[] {
+  if (maxParallel <= 0 || orderedIds.length === 0) return [];
+  const selected: string[] = [];
+  for (const candidate of orderedIds) {
+    if (selected.length >= maxParallel) break;
+    const conflictsExisting = selected.some((existing) => hasConflict(candidate, existing));
+    if (conflictsExisting) continue;
+    selected.push(candidate);
+  }
+  return selected;
+}
+
+function buildReactiveNodes(
+  graph: Array<Pick<DerivedTaskNode, "id" | "dependsOn" | "outputFiles">>,
+): UokGraphNode[] {
+  return graph.map((node) => ({
+    id: node.id,
+    kind: "unit",
+    dependsOn: [...node.dependsOn],
+    writes: [...node.outputFiles],
+  }));
+}
+
+export function selectReactiveDispatchBatch(
+  input: ReactiveDispatchSelectionInput,
+): ReactiveDispatchSelectionResult {
+  const nodeMap = new Map(buildReactiveNodes(input.graph).map((n) => [n.id, n]));
+  const readyNodes = input.readyIds
+    .map((id) => nodeMap.get(id))
+    .filter((node): node is UokGraphNode => !!node);
+  const conflicts = detectFileConflicts(readyNodes);
+  if (readyNodes.length === 0 || input.maxParallel <= 0) {
+    return { selected: [], conflicts };
+  }
+
+  const claimed = new Set(input.inFlightOutputs ?? []);
+  const selected: string[] = [];
+  const selectedSet = new Set<string>();
+  const readySet = new Set(input.readyIds);
+
+  for (const id of input.readyIds) {
+    if (selected.length >= input.maxParallel) break;
+    const node = nodeMap.get(id);
+    if (!node) continue;
+
+    const hasUnmetReadyDependency = node.dependsOn.some(
+      (dep) => readySet.has(dep) && !selectedSet.has(dep),
+    );
+    if (hasUnmetReadyDependency) continue;
+
+    const writes = node.writes ?? [];
+    const conflictsWithClaimed = writes.some((file) => claimed.has(file));
+    if (conflictsWithClaimed) continue;
+
+    selected.push(node.id);
+    selectedSet.add(node.id);
+    for (const file of writes) claimed.add(file);
+  }
+
+  return { selected, conflicts };
+}
+
+function sidecarToNodeKind(kind: SidecarItem["kind"]): UokGraphNode["kind"] {
+  if (kind === "hook") return "hook";
+  if (kind === "triage") return "verification";
+  return "team-worker";
+}
+
+export function buildSidecarQueueNodes(queue: SidecarItem[]): UokGraphNode[] {
+  return queue.map((item, index) => ({
+    id: `sidecar-${String(index).padStart(4, "0")}:${item.kind}:${item.unitType}:${item.unitId}`,
+    kind: sidecarToNodeKind(item.kind),
+    dependsOn: index > 0 ? [`sidecar-${String(index - 1).padStart(4, "0")}:${queue[index - 1].kind}:${queue[index - 1].unitType}:${queue[index - 1].unitId}`] : [],
+    metadata: { index },
+  }));
+}
+
+export async function scheduleSidecarQueue(queue: SidecarItem[]): Promise<SidecarItem[]> {
+  if (queue.length <= 1) return [...queue];
+  const nodes = buildSidecarQueueNodes(queue);
+  const scheduler = new ExecutionGraphScheduler();
+  const orderedIndexes: number[] = [];
+  const seenKinds = new Set<UokGraphNode["kind"]>(nodes.map((n) => n.kind));
+
+  for (const kind of seenKinds) {
+    scheduler.registerHandler(kind, async (node) => {
+      const idx = Number(node.metadata?.index);
+      if (Number.isInteger(idx) && idx >= 0) orderedIndexes.push(idx);
+    });
+  }
+
+  await scheduler.run(nodes, { parallel: false });
+  return orderedIndexes.map((idx) => queue[idx]).filter((item): item is SidecarItem => !!item);
+}
 
 export class ExecutionGraphScheduler {
   private readonly handlers = new Map<string, ExecutionNodeHandler>();
@@ -42,6 +161,7 @@ export class ExecutionGraphScheduler {
       const ready = Array.from(remaining.values()).filter((node) =>
         node.dependsOn.every((dep) => done.has(dep)),
       );
+      ready.sort((a, b) => a.id.localeCompare(b.id));
       if (ready.length === 0) {
         throw new Error("Execution graph deadlock detected: no ready nodes and graph not complete");
       }

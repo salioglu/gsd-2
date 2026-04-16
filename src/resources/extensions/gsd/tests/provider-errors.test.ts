@@ -202,6 +202,10 @@ test("isTransientNetworkError detects DNS errors", () => {
   assert.ok(isTransientNetworkError("dns resolution failed"));
 });
 
+test("isTransientNetworkError detects unexpected EOF", () => {
+  assert.ok(isTransientNetworkError("unexpected EOF"));
+});
+
 test("isTransientNetworkError rejects auth errors", () => {
   assert.ok(!isTransientNetworkError("unauthorized: invalid API key"));
 });

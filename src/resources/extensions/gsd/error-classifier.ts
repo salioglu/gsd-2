@@ -47,7 +47,7 @@ const RATE_LIMIT_RE = /rate.?limit|too many requests|429/i;
 // OpenRouter affordability-style quota errors should be treated as transient
 // so core retry logic can lower maxTokens and continue in-session.
 const AFFORDABILITY_RE = /requires more credits|can only afford|insufficient credits|not enough credits|fewer max_tokens/i;
-const NETWORK_RE = /network|ECONNRESET|ETIMEDOUT|ECONNREFUSED|socket hang up|fetch failed|connection.*reset|dns/i;
+const NETWORK_RE = /network|ECONNRESET|ETIMEDOUT|ECONNREFUSED|socket hang up|fetch failed|connection.*reset|dns|unexpected eof/i;
 const SERVER_RE = /internal server error|500|502|503|overloaded|server_error|api_error|service.?unavailable/i;
 // ECONNRESET/ECONNREFUSED are in NETWORK_RE (same-model retry first).
 const CONNECTION_RE = /terminated|connection.?(?:refused|error)|other side closed|EPIPE|network.?(?:is\s+)?unavailable|stream_exhausted(?:_without_result)?/i;

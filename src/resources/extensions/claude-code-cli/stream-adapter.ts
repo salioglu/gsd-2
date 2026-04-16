@@ -693,7 +693,7 @@ function modelSupportsAdaptiveThinking(modelId: string): boolean {
 	);
 }
 
-function mapThinkingLevelToAnthropicEffort(level: ThinkingLevel | undefined, modelId: string): "low" | "medium" | "high" | "max" {
+function mapThinkingLevelToAnthropicEffort(level: ThinkingLevel | undefined, modelId: string): "low" | "medium" | "high" | "xhigh" | "max" {
 	switch (level) {
 		case "minimal":
 		case "low":
@@ -703,8 +703,9 @@ function mapThinkingLevelToAnthropicEffort(level: ThinkingLevel | undefined, mod
 		case "high":
 			return "high";
 		case "xhigh":
-			return modelId.includes("opus-4-6") || modelId.includes("opus-4.6")
-				|| modelId.includes("opus-4-7") || modelId.includes("opus-4.7") ? "max" : "high";
+			if (modelId.includes("opus-4-7") || modelId.includes("opus-4.7")) return "xhigh";
+			if (modelId.includes("opus-4-6") || modelId.includes("opus-4.6")) return "max";
+			return "high";
 		default:
 			return "high";
 	}

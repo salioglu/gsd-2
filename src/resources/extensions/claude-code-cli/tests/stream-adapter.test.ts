@@ -454,9 +454,9 @@ describe("stream-adapter — session persistence (#2859)", () => {
 		assert.equal(options.effort, "high");
 	});
 
-	test("buildSdkOptions upgrades xhigh reasoning to max for opus-4-7 (#4348)", () => {
+	test("buildSdkOptions passes xhigh reasoning natively for opus-4-7 (#4348)", () => {
 		const options = buildSdkOptions("claude-opus-4-7", "test", undefined, { reasoning: "xhigh" });
-		assert.equal(options.effort, "max");
+		assert.equal(options.effort, "xhigh");
 	});
 
 	test("buildSdkOptions omits effort when reasoning is undefined (#3917)", () => {

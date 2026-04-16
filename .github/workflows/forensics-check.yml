@@ -59,7 +59,7 @@ jobs:
               'Thanks for the bug report! To help us investigate, please run `/gsd forensics` in your project and paste the output here.',
               '',
               '```bash',
-              '# In your project directory, inside Claude Code:',
+              '# In your project directory:',
               '/gsd forensics',
               '```',
               '',

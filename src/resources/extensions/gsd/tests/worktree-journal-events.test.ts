@@ -49,6 +49,7 @@ function makeDeps(
     loadEffectiveGSDPreferences: () => ({ preferences: { git: {} } }),
     invalidateAllCaches: () => {},
     captureIntegrationBranch: () => {},
+    enterBranchModeForMilestone: () => {},
     ...overrides,
   };
   return deps;

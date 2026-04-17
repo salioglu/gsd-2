@@ -146,6 +146,7 @@ import { getPriorSliceCompletionBlocker } from "./dispatch-guard.js";
 import {
   createAutoWorktree,
   enterAutoWorktree,
+  enterBranchModeForMilestone,
   teardownAutoWorktree,
   isInAutoWorktree,
   getAutoWorktreePath,
@@ -1129,6 +1130,7 @@ function buildResolverDeps(): WorktreeResolverDeps {
     teardownAutoWorktree,
     createAutoWorktree,
     enterAutoWorktree,
+    enterBranchModeForMilestone,
     getAutoWorktreePath,
     autoCommitCurrentBranch,
     getCurrentBranch,
@@ -1464,10 +1466,10 @@ export async function startAuto(
       ctx.ui.notify(summary, level as "info" | "warning" | "error");
     });
 
-    // ── Auto-worktree: re-enter worktree on resume ──
+    // ── Auto-worktree / branch-mode: re-enter on resume ──
     if (
       s.currentMilestoneId &&
-      shouldUseWorktreeIsolation() &&
+      getIsolationMode() !== "none" &&
       s.originalBasePath &&
       !isInAutoWorktree(s.basePath) &&
       !detectWorktreeName(s.basePath) &&

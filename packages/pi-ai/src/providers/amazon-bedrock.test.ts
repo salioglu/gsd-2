@@ -25,6 +25,7 @@ import type { Model } from "../types.js";
 // Helpers
 // ---------------------------------------------------------------------------
 
+/** Create a minimal stub `Model` for the given ID to use in unit tests. */
 function makeModel(id: string): Model<"bedrock-converse-stream"> {
     return {
         id,

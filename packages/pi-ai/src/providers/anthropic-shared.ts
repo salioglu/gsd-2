@@ -1,5 +1,7 @@
 /**
  * Shared utilities for Anthropic providers (direct API and Vertex AI).
+ * Includes message conversion, tool normalisation, cache-control helpers,
+ * adaptive-thinking detection, and the core `processAnthropicStream` pump.
  */
 import type Anthropic from "@anthropic-ai/sdk";
 import type {
@@ -47,6 +49,7 @@ export interface AnthropicOptions extends StreamOptions {
 	toolChoice?: "auto" | "any" | "none" | { type: "tool"; name: string };
 }
 
+/** Canonical list of Claude Code built-in tool names used for case-normalisation. */
 const claudeCodeTools = [
 	"Read",
 	"Write",
@@ -67,6 +70,7 @@ const claudeCodeTools = [
 	"WebSearch",
 ];
 
+/** Lowercase-keyed lookup map built from `claudeCodeTools` for O(1) case-insensitive name resolution. */
 const ccToolLookup = new Map(claudeCodeTools.map((t) => [t.toLowerCase(), t]));
 
 /** Normalise a tool name to its canonical Claude Code casing. */
@@ -81,6 +85,10 @@ export const fromClaudeCodeName = (name: string, tools?: Tool[]) => {
 	return name;
 };
 
+/**
+ * Resolve cache retention preference.
+ * Defaults to "short" and uses PI_CACHE_RETENTION for backward compatibility.
+ */
 function resolveCacheRetention(cacheRetention?: CacheRetention): CacheRetention {
 	if (cacheRetention) {
 		return cacheRetention;
